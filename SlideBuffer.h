@@ -36,36 +36,64 @@ class SlideBuffer {
         void   *bufferDevice; // The device buffer
         void   *bufferHost;   // The host buffer
         FILE   *srcStream;    // The file stream to be read
-        size_t  modulo;       // The starting offset
+        size_t  offset;       // The starting offset into the buffer
+        size_t  fileBytes;    // The size of the file in bytes
+
+        /**
+         * Utility function for reading bytes from a file stream,
+         * but keeping the file position indicator at the *beginning*
+         * of a block of data of size bufferBytes
+         *
+         * @param slideAmount The amount to slide, in bytes
+         *
+         * The appropriate parts of the data stream are read into bufferHost,
+         * but which data are "appropriate" depends on whether the shift is
+         * forwards (positive) or backwards (negative):
+         *
+         * Positive shift:
+         * ```
+         *   |---------------|
+         *      |----------------|
+         *      ^             ***
+         *      |             Read-in data
+         *      | New file position
+         * ```
+         *
+         * Negative shift:
+         * ```
+         *      |----------------|
+         *   |---------------|
+         *   ^***
+         *   |Read-in data
+         *   | New file position
+         * ```
+         *
+         * This function does not check whether or not beginning-of-file, or
+         * EOF is reached.
+         */
+        void readStreamToHost( long slideAmount )
+        {
+            if (slideAmount == 0)
+                return;
+
+            size_t readAmount = abs(slideAmount);
+            if (readAmount > bufferBytes)  readAmount = bufferBytes;
+
+            if (slideAmount > 0 && readAmount < bufferBytes)
+            {
+                fseek( srcStream,   bufferBytes, SEEK_CUR );     // Jump to the end of the current buffer
+                fread( bufferHost,  readAmount, 1, srcStream );  // Read in the data
+                fseek( srcStream,  -bufferBytes, SEEK_CUR );     // Jump backwards one buffers' worth
+            }
+            else
+            {
+                fseek( srcStream,  slideAmount, SEEK_CUR );      // Go backwards in the file
+                fread( bufferHost, readAmount, 1, srcStream );   // Read in the data
+                fseek( srcStream,  slideAmount, SEEK_CUR );      // And go back again
+            }
+        }
 
     public:
-
-        /**
-         * Constructor for SlideBuffer class
-         *
-         * @param bytes The size of the slide buffer in bytes
-         * @param fileStream The file stream from which the data will be read
-         *
-         * This constructor allocates memory on the CPU and the GPU.
-         */
-        SlideBuffer( size_t bytes, FILE *fileStream ) :
-            bufferBytes{bytes},
-            bufferDevice{NULL},
-            bufferHost{NULL},
-            srcStream{fileStream},
-            modulo(0)
-            {
-                gpuErrchk( cudaMalloc( &bufferDevice, bytes ) );
-                gpuErrchk( cudaMallocHost( &bufferHost, bytes ) );
-            }
-
-        /**
-         * Deconstructor for SlideBuffer class
-         */
-        ~SlideBuffer() {
-            gpuErrchk( cudaFree( bufferDevice ) );
-            gpuErrchk( cudaFreeHost( bufferHost ) );
-        }
 
         /**
          * Get the pointer to the device buffer
@@ -89,25 +117,160 @@ class SlideBuffer {
         size_t getSize() { return bufferBytes; };
 
         /**
+         * Set the source file stream
+         *
+         * @param fileStream The file stream to use as source
+         */
+        void setSrcStream( FILE *fileStream ) {
+            srcStream = fileStream;
+            if (fileStream == NULL)
+                fileBytes = 0;
+            else
+            {
+                long curr_pos = ftell( srcStream );
+                fseek( srcStream, 0, SEEK_END );
+                fileBytes = ftell( srcStream );
+                fseek( srcStream, curr_pos, SEEK_SET );
+            }
+        }
+
+        /**
+         * Fill the buffer and send to GPU.
+         *
+         * This reads in a whole buffer's worth of data from the file stream
+         * and loads it to the GPU
+         */
+        void fillBuffer()
+        {
+            if (srcStream == NULL)
+                return;
+
+            // Read in the data
+            fread( bufferHost, bufferBytes, 1, srcStream );
+            fseek( srcStream, -bufferBytes, SEEK_CUR );
+
+            // Send to GPU
+            gpuErrchk( cudaMemcpy( bufferDevice, bufferHost, bufferBytes, cudaMemcpyHostToDevice ) );
+
+            // Reset offset
+            offset = 0;
+        }
+
+        /**
+         * Copy the current contents of the GPU buffer to host
+         */
+        void pullBuffer()
+        {
+            gpuErrchk( cudaMemcpy( bufferHost, bufferDevice, bufferBytes, cudaMemcpyDeviceToHost ) );
+        }
+
+        /**
          * Slide forwards or backwards by some number of bytes
          *
          * @param slideAmountBytes The number of bytes to slide. Positive
          *                         numbers mean slide forward, negative mean
          *                         slide back.
          */
-        void slide( int slideAmountBytes )
+        void slideAndRead( long slideAmountBytes )
         {
-            //
+            // Check that the source file stream is set
+            if (srcStream == NULL)
+                return;
+
+            // Limit the slide amount so that it doesn't exceed the file
+            // stream boundaries
+            long curr_pos = ftell( srcStream );
+            long lastAllowedPos = fileBytes - bufferBytes;
+
+            if (curr_pos + slideAmountBytes < 0)
+                slideAmountBytes = -curr_pos;
+            else if (curr_pos + slideAmountBytes > lastAllowedPos)
+                slideAmountBytes = lastAllowedPos - curr_pos;
+
             // If slide amount is zero, do nothing
             if (slideAmountBytes == 0)
                 return;
 
-            // If slide amount is >= the size of the buffer, read in
-            // a whole buffer amount
-            if (slideAmountBytes >= bufferBytes)
+            // Read in the new data (to bufferHost)
+            readStreamToHost( slideAmountBytes );
+            // (Now, bufferHost contains *only* the new data)
+
+            // If absolute value of slide amount is >= the size of the buffer,
+            // just read in a whole buffer amount
+            if (abs(slideAmountBytes) >= bufferBytes)
             {
+                // Copy the data to GPU
+                gpuErrchk( cudaMemcpy( bufferDevice, bufferHost, bufferBytes, cudaMemcpyHostToDevice ) );
+
+                // Reset the offset to zero, for one contiguous read
+                offset = 0;
+
+                // We're done, so return
+                return;
             }
+
+            // If we got this far, we have to implement the sliding action
+
+            // Calculate where the final offset will be after we're done
+            size_t newOffset = (offset + slideAmountBytes + bufferBytes) % bufferBytes;
+
+            // Calculate the offset where we need to start writing (and get a
+            // corresponding device pointer)
+            size_t writeOffset = (slideAmountBytes < 0 ? newOffset : offset);
+            char *d_ptr = (char *)bufferDevice + writeOffset;
+
+            // Calculate how many bytes will be written
+            size_t writeAmount = slideAmountBytes * (slideAmountBytes < 0 ? -1 : 1);
+
+            // Can we get away with a single write?
+            if (writeOffset + writeAmount < bufferBytes)
+            {
+                gpuErrchk( cudaMemcpy( d_ptr, bufferHost, writeAmount, cudaMemcpyHostToDevice ) );
+            }
+            else
+            {
+                // Do two writes then, one to the end of the buffer, and one to the front
+                size_t writeEndAmount   = bufferBytes - writeOffset;
+                size_t writeFrontAmount = writeAmount - writeEndAmount;
+
+                char *ptrEnd   = (char *)bufferHost;
+                char *ptrFront = ptrEnd + writeEndAmount;
+
+                gpuErrchk( cudaMemcpy( d_ptr, ptrEnd, writeEndAmount, cudaMemcpyHostToDevice ) );
+                gpuErrchk( cudaMemcpy( bufferDevice, ptrFront, writeFrontAmount, cudaMemcpyHostToDevice ) );
+            }
+
+            // Update the offset
+            offset = newOffset;
         }
+
+        /**
+         * Constructor for SlideBuffer class
+         *
+         * @param bytes The size of the slide buffer in bytes
+         * @param fileStream The file stream from which the data will be read
+         *
+         * This constructor allocates memory on the CPU and the GPU.
+         */
+        SlideBuffer( size_t bytes, FILE *fileStream = NULL ) :
+            bufferBytes{bytes},
+            bufferDevice{NULL},
+            bufferHost{NULL},
+            offset(0)
+            {
+                setSrcStream( fileStream );
+                gpuErrchk( cudaMalloc( &bufferDevice, bytes ) );
+                gpuErrchk( cudaMallocHost( &bufferHost, bytes ) );
+            }
+
+        /**
+         * Deconstructor for SlideBuffer class
+         */
+        ~SlideBuffer() {
+            gpuErrchk( cudaFree( bufferDevice ) );
+            gpuErrchk( cudaFreeHost( bufferHost ) );
+        }
+
 };
 
 #endif
