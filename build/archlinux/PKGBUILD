@@ -1,0 +1,24 @@
+# Maintainer: Sam McSweeney <sammy.mcsweeney@gmail.com>
+pkgname=slidebuffer
+pkgver=ra95c614
+pkgrel=1
+pkgdesc="An implementation of a bi-directional ringbuffer for CUDA"
+arch=('i686' 'x86_64')
+url=
+license=('GPL')
+depends=('cuda')
+makedepends=()
+optdepends=()
+provides=(${pkgname})
+backup=()
+source=()
+md5sums=('SKIP')
+
+pkgver() {
+  printf "r%s" "$(git rev-parse --short HEAD)"
+}
+
+package() {
+  mkdir -p $pkgdir/usr/local/include
+  install -D -m644 ../../../SlideBuffer.h $pkgdir/usr/local/include
+}
