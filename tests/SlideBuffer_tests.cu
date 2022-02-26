@@ -1,7 +1,7 @@
 #include <cstdlib>
 #include <iostream>
 
-#include "../SlideBuffer.h"
+#include "../src/SlideBuffer.h"
 
 #define Assert(cond,failstr,count) {if (!(cond)) { cout << "[FAIL]: " << failstr << endl; return count; } count++;}
 

@@ -1,3 +1,10 @@
+# Compilation files
+*.o
+
+# Build files
+*.tar.xz
+build/archlinux/pkg
+
 # Generated directories
 doc/html
 
