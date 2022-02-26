@@ -8,6 +8,12 @@ typedef enum onDeviceOrHost_t {
     ON_HOST
 } onDeviceOrHost;
 
+/**
+ * SlideBuffer class
+ *
+ * An implementation of a ringbuffer, allowing easy bi-directional movement
+ * through a data set.
+ */
 class SlideBuffer {
 
     private:
