@@ -77,20 +77,24 @@ class SlideBuffer {
                 return;
 
             size_t readAmount = abs(slideAmount);
-            if (readAmount > bufferBytes)  readAmount = bufferBytes;
+            if (readAmount > bufferBytes)
+                readAmount = bufferBytes;
 
-            if (slideAmount > 0 && readAmount < bufferBytes)
-            {
-                fseek( srcStream,   bufferBytes, SEEK_CUR );     // Jump to the end of the current buffer
-                fread( bufferHost,  readAmount, 1, srcStream );  // Read in the data
-                fseek( srcStream,  -bufferBytes, SEEK_CUR );     // Jump backwards one buffers' worth
-            }
-            else
-            {
-                fseek( srcStream,  slideAmount, SEEK_CUR );      // Go backwards in the file
-                fread( bufferHost, readAmount, 1, srcStream );   // Read in the data
-                fseek( srcStream,  slideAmount, SEEK_CUR );      // And go back again
-            }
+            size_t curr_pos  = ftell( srcStream );
+            size_t read_pos  = curr_pos + (slideAmount > 0 && slideAmount <= bufferBytes ? bufferBytes : slideAmount);
+            size_t final_pos = curr_pos + slideAmount;
+
+#ifdef DEBUG
+            fprintf( stderr, "slideAmount = %ld\n", slideAmount );
+            fprintf( stderr, "curr_pos = %ld\n", curr_pos );
+            fprintf( stderr, "read_pos = %ld\n", read_pos );
+            fprintf( stderr, "final_pos = %ld\n", final_pos );
+            fprintf( stderr, "\n" );
+#endif
+
+            fseek( srcStream,  read_pos, SEEK_SET );       // Jump to the appropriate place
+            fread( bufferHost, readAmount, 1, srcStream ); // Read in the data
+            fseek( srcStream,  final_pos, SEEK_SET );      // Re-place the file position indicator
         }
 
     public:
