@@ -49,8 +49,7 @@ int testSlide()
 
     // Set up
     size_t bytes = 64;
-    FILE *f = fopen( "testdata.dat", "r" );
-    SlideBuffer mySlideBuffer( bytes, f );
+    SlideBuffer mySlideBuffer( bytes, "testdata.dat" );
     mySlideBuffer.fillBuffer();
 
     // Test 1: Make sure the data copied ok
@@ -101,9 +100,6 @@ for (int i = 0; i < bytes; i++)
     printf("%c", buffer[i]);
 printf("\n");
 */
-
-    // Clean up
-    fclose( f );
 
     return nPassed;
 }

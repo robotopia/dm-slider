@@ -13,7 +13,8 @@ using namespace std;
  * through a data set. It is designed for data arrays that are too large
  * to fit in memory, but which need to be "scrolled" through.
  */
-class SlideBuffer {
+class SlideBuffer
+{
 
     protected:
 
@@ -92,9 +93,9 @@ class SlideBuffer {
         /**
          * Set the source file stream
          *
-         * @param fileStream The file stream to use as source
+         * @param srcFile The name of the file to use as source
          */
-        void setSrcStream( FILE *fileStream );
+        void setSrcFile( const char *srcFile, const char *mode = "r" );
 
         //
         // Manipulating data
@@ -131,10 +132,11 @@ class SlideBuffer {
          *
          * This constructor allocates memory on the CPU and the GPU.
          *
-         * @param bytes The size of the slide buffer in bytes
-         * @param fileStream The file stream from which the data will be read
+         * @param bytes   The size of the slide buffer in bytes
+         * @param srcFile The name of the file from which the data will be
+         *                read
          */
-        SlideBuffer( size_t bytes, FILE *fileStream = NULL );
+        SlideBuffer( size_t bytes, const char *srcFile = NULL, const char *mode = "r" );
 
         /**
          * Deconstructor for SlideBuffer class

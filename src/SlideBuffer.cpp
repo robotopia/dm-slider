@@ -32,10 +32,10 @@ void SlideBuffer::readStreamToHost( long slideAmount )
     fseek( srcStream,  final_pos, SEEK_SET );      // Re-place the file position indicator
 }
 
-void SlideBuffer::setSrcStream( FILE *fileStream )
+void SlideBuffer::setSrcFile( const char *srcFile, const char *mode )
 {
-    srcStream = fileStream;
-    if (fileStream == NULL)
+    srcStream = fopen( srcFile, mode );
+    if (srcStream == NULL)
         fileBytes = 0;
     else
     {
@@ -140,13 +140,13 @@ void SlideBuffer::slideAndRead( long slideAmountBytes )
     offset = newOffset;
 }
 
-SlideBuffer::SlideBuffer( size_t bytes, FILE *fileStream ) :
+SlideBuffer::SlideBuffer( size_t bytes, const char *srcFile, const char *mode ) :
     bufferBytes{bytes},
     bufferDevice{NULL},
     bufferHost{NULL},
     offset(0)
 {
-    setSrcStream( fileStream );
+    setSrcFile( srcFile, mode );
     gpuErrchk( cudaMalloc( &bufferDevice, bytes ) );
     gpuErrchk( cudaMallocHost( &bufferHost, bytes ) );
 }
@@ -154,4 +154,7 @@ SlideBuffer::SlideBuffer( size_t bytes, FILE *fileStream ) :
 SlideBuffer::~SlideBuffer() {
     gpuErrchk( cudaFree( bufferDevice ) );
     gpuErrchk( cudaFreeHost( bufferHost ) );
+
+    if (srcStream != NULL)
+        fclose( srcStream );
 }
