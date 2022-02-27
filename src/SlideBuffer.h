@@ -94,8 +94,9 @@ class SlideBuffer
          * Set the source file stream
          *
          * @param srcFile The name of the file to use as source
+         * @param mode    The I/O mode (same as fopen()
          */
-        void setSrcFile( const char *srcFile, const char *mode = "r" );
+        virtual void setSrcFile( const char *srcFile, const char *mode = "r" );
 
         //
         // Manipulating data
@@ -135,6 +136,7 @@ class SlideBuffer
          * @param bytes   The size of the slide buffer in bytes
          * @param srcFile The name of the file from which the data will be
          *                read
+         * @param mode    The I/O mode (same as fopen())
          */
         SlideBuffer( size_t bytes, const char *srcFile = NULL, const char *mode = "r" );
 

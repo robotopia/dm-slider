@@ -31,11 +31,14 @@ class VDIFBuffer : public SlideBuffer
 
     public:
 
-        //
-        // Constructor/Destructor
-        //
+        /**
+         * Set the source file stream
+         *
+         * @param srcFile The name of the file to use as source
+         * @param mode    The I/O mode (same as fopen()
+         */
+        void setSrcFile( const char *srcFile, const char *mode = "r" );
 
-        VDIFBuffer( size_t bytes, const char *srcFile = NULL, const char *mode = "r" );
 };
 
 #endif
