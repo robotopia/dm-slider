@@ -68,14 +68,20 @@ void SlideBuffer::setSrcFile( const char *srcFile, const char *mode )
     }
 }
 
-void SlideBuffer::fillBuffer()
+void SlideBuffer::fillBuffer( size_t bytes )
 {
     if (srcStream == NULL)
         return;
 
+    if (bytes == 0)
+        bytes = bufferHostBytes;
+
     // Read in the data
-    fread( bufferHost, bufferBytes, 1, srcStream );
-    fseek( srcStream, -bufferBytes, SEEK_CUR );
+    fread( bufferHost, bytes, 1, srcStream );
+    fseek( srcStream, -bytes, SEEK_CUR );
+
+    // Trim the data
+    trimBuffer( bytes );
 
     // Send to GPU
     gpuErrchk( cudaMemcpy( bufferDevice, bufferHost, bufferBytes, cudaMemcpyHostToDevice ) );
@@ -151,15 +157,19 @@ void SlideBuffer::slideAndRead( long slideAmountBytes )
     offset = newOffset;
 }
 
-SlideBuffer::SlideBuffer( size_t bytes, const char *srcFile, const char *mode ) :
+SlideBuffer::SlideBuffer( size_t bytes, const char *srcFile, const char *mode, size_t hostBytes ) :
     bufferBytes{bytes},
     bufferDevice{NULL},
     bufferHost{NULL},
-    offset(0)
+    offset{0},
+    bufferHostBytes{hostBytes}
 {
+    if (hostBytes == 0)
+        bufferHostBytes = bytes;
+
     setSrcFile( srcFile, mode );
-    gpuErrchk( cudaMalloc( &bufferDevice, bytes ) );
-    gpuErrchk( cudaMallocHost( &bufferHost, bytes ) );
+    gpuErrchk( cudaMalloc( &bufferDevice, bufferBytes ) );
+    gpuErrchk( cudaMallocHost( &bufferHost, bufferHostBytes ) );
 }
 
 SlideBuffer::~SlideBuffer() {

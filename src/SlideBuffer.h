@@ -18,12 +18,13 @@ class SlideBuffer
 
     protected:
 
-        size_t  bufferBytes;  // The size of the buffer in bytes
-        void   *bufferDevice; // The device buffer
-        void   *bufferHost;   // The host buffer
-        FILE   *srcStream;    // The file stream to be read
-        size_t  offset;       // The starting offset into the buffer
-        size_t  fileBytes;    // The size of the file in bytes
+        size_t  bufferBytes;     // The size of the device buffer in bytes
+        size_t  bufferHostBytes; // The size of the host buffer in bytes
+        void   *bufferDevice;    // The device buffer
+        void   *bufferHost;      // The host buffer
+        FILE   *srcStream;       // The file stream to be read
+        size_t  offset;          // The starting offset into the buffer
+        size_t  fileBytes;       // The size of the file in bytes
 
         /**
          * Limit the given slide amount so that a slide of that
@@ -124,9 +125,27 @@ class SlideBuffer
          * Fill the buffer and send to GPU.
          *
          * This reads in a whole buffer's worth of data from the file stream
-         * and loads it to the GPU
+         * and loads it to the GPU.
+         *
+         * If `bytes == 0`, then read in as many bytes as possible (i.e. the
+         * size of the host buffer).
+         *
+         * @param bytes The number of bytes to read from the file
          */
-        virtual void fillBuffer();
+        void fillBuffer( size_t bytes = 0 );
+
+        /**
+         * Trim the non-data bytes from the host buffer
+         *
+         * The data bytes are packed without gaps at the beginning of the host buffer.
+         * The order of the data bytes is retained.
+         *
+         * If `bytes == 0`, then use as many bytes as possible (i.e. the
+         * size of the host buffer).
+         *
+         * @param bytes The number of bytes in the host buffer to include in the trim
+         */
+        virtual void trimBuffer( size_t bytes = 0 ) {} // Default behaviour is to do nothing = assumed already trimmed
 
         /**
          * Copy the current contents of the GPU buffer to host
@@ -156,7 +175,7 @@ class SlideBuffer
          *                read
          * @param mode    The I/O mode (same as fopen())
          */
-        SlideBuffer( size_t bytes, const char *srcFile = NULL, const char *mode = "r" );
+        SlideBuffer( size_t bytes, const char *srcFile = NULL, const char *mode = "r", size_t hostBytes = 0 );
 
         /**
          * Deconstructor for SlideBuffer class

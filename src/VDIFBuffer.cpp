@@ -140,18 +140,10 @@ void VDIFBuffer::setSrcFile( const char *srcFile, const char *mode )
     }
 }
 
-void VDIFBuffer::fillBuffer()
+void VDIFBuffer::trimBuffer( size_t bytes )
 {
-    if (srcStream == NULL)
-        return;
+    size_t data_pos = getCurrentDataPos();
+    size_t buf_pos  = 0;
 
-    // Read in the data
-    fread( bufferHost, bufferBytes, 1, srcStream );
-    fseek( srcStream, -bufferBytes, SEEK_CUR );
-
-    // Send to GPU
-    gpuErrchk( cudaMemcpy( bufferDevice, bufferHost, bufferBytes, cudaMemcpyHostToDevice ) );
-
-    // Reset offset
-    offset = 0;
+    // YET TO DO... I may need to rethink this
 }

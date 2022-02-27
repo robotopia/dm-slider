@@ -88,12 +88,17 @@ class VDIFBuffer : public SlideBuffer
         void setSrcFile( const char *srcFile, const char *mode = "r" );
 
         /**
-         * Fill the buffer and send to GPU.
+         * Trim the non-data bytes from the host buffer
          *
-         * This reads in a whole buffer's worth of data from the VDIF file
-         * and loads it to the GPU
+         * The data bytes are packed without gaps at the beginning of the host buffer.
+         * The order of the data bytes is retained.
+         *
+         * If `bytes == 0`, then use as many bytes as possible (i.e. the
+         * size of the host buffer).
+         *
+         * @param bytes The number of bytes in the host buffer to include in the trim
          */
-        void fillBuffer();
+        void trimBuffer( size_t bytes = 0 );
 
         /**
          * Constructor for VDIFBuffer class
@@ -106,7 +111,7 @@ class VDIFBuffer : public SlideBuffer
          * @param mode    The I/O mode (same as fopen())
          */
         VDIFBuffer( size_t bytes, const char *srcFile = NULL, const char *mode = "r" ) :
-            SlideBuffer{ bytes, srcFile, mode } {}
+            SlideBuffer{ bytes, srcFile, mode, 2*bytes } {}
 
 };
 
