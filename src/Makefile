@@ -1,6 +1,7 @@
 CC = nvcc
 
-OBJECTS = SlideBuffer.o
+OBJECTS = SlideBuffer.o \
+          VDIFBuffer.o
 
 all: $(OBJECTS)
 

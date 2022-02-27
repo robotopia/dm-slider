@@ -49,10 +49,12 @@ void SlideBuffer::setSrcFile( const char *srcFile, const char *mode )
         fileBytes = 0;
     else
     {
-        long curr_pos = ftell( srcStream );
+        // Measure the file length
         fseek( srcStream, 0, SEEK_END );
         fileBytes = ftell( srcStream );
-        fseek( srcStream, curr_pos, SEEK_SET );
+
+        // Put the position indicator back to the beginning
+        rewind( srcStream );
     }
 }
 
