@@ -6,21 +6,31 @@
 
 using namespace std;
 
-void SlideBuffer::readStreamToHost( long slideAmount )
+void SlideBuffer::readStreamToHost( long *slideAmount )
 {
-    if (slideAmount == 0)
+    // Limit the slide amount so that it doesn't exceed the file
+    // stream boundaries
+    long curr_pos = ftell( srcStream );
+    long lastAllowedPos = fileBytes - bufferBytes;
+
+    if (curr_pos + *slideAmount < 0)
+        *slideAmount = -curr_pos;
+    else if (curr_pos + *slideAmount > lastAllowedPos)
+        *slideAmount = lastAllowedPos - curr_pos;
+
+    // If slide amount is zero, do nothing
+    if (*slideAmount == 0)
         return;
 
-    size_t readAmount = abs(slideAmount);
+    size_t readAmount = abs(*slideAmount);
     if (readAmount > bufferBytes)
         readAmount = bufferBytes;
 
-    size_t curr_pos  = ftell( srcStream );
-    size_t read_pos  = curr_pos + (slideAmount > 0 && slideAmount <= bufferBytes ? bufferBytes : slideAmount);
-    size_t final_pos = curr_pos + slideAmount;
+    size_t read_pos  = curr_pos + (*slideAmount > 0 && *slideAmount <= bufferBytes ? bufferBytes : *slideAmount);
+    size_t final_pos = curr_pos + *slideAmount;
 
 #ifdef DEBUG
-    fprintf( stderr, "slideAmount = %ld\n", slideAmount );
+    fprintf( stderr, "slideAmount = %ld\n", *slideAmount );
     fprintf( stderr, "curr_pos = %ld\n", curr_pos );
     fprintf( stderr, "read_pos = %ld\n", read_pos );
     fprintf( stderr, "final_pos = %ld\n", final_pos );
@@ -73,23 +83,12 @@ void SlideBuffer::slideAndRead( long slideAmountBytes )
     if (srcStream == NULL)
         return;
 
-    // Limit the slide amount so that it doesn't exceed the file
-    // stream boundaries
-    long curr_pos = ftell( srcStream );
-    long lastAllowedPos = fileBytes - bufferBytes;
+    // Read in the new data (to bufferHost)
+    readStreamToHost( &slideAmountBytes );
+    // (Now, bufferHost contains *only* the new data)
 
-    if (curr_pos + slideAmountBytes < 0)
-        slideAmountBytes = -curr_pos;
-    else if (curr_pos + slideAmountBytes > lastAllowedPos)
-        slideAmountBytes = lastAllowedPos - curr_pos;
-
-    // If slide amount is zero, do nothing
     if (slideAmountBytes == 0)
         return;
-
-    // Read in the new data (to bufferHost)
-    readStreamToHost( slideAmountBytes );
-    // (Now, bufferHost contains *only* the new data)
 
     // If absolute value of slide amount is >= the size of the buffer,
     // just read in a whole buffer amount

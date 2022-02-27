@@ -52,12 +52,12 @@ class SlideBuffer
          *   | New file position
          * ```
          *
-         * This function does not check whether or not beginning-of-file, or
-         * EOF is reached.
+         * The value of slideAmount may be changed if the slide would overrun
+         * the file boundaries.
          *
-         * @param slideAmount The amount to slide, in bytes
+         * @param[in,out] slideAmount The amount to slide, in bytes
          */
-        void readStreamToHost( long slideAmount );
+        virtual void readStreamToHost( long *slideAmount );
 
     public:
 
