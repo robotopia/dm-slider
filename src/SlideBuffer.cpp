@@ -6,17 +6,26 @@
 
 using namespace std;
 
+long SlideBuffer::limitSlideAmount( long slideAmount )
+{
+    // Limit the slide amount so that it doesn't exceed the file
+    // stream boundaries
+    long curr_pos = getCurrentDataPos();
+    long lastAllowedPos = fileBytes - bufferBytes;
+
+    if (curr_pos + slideAmount < 0)
+        slideAmount = -curr_pos;
+    else if (curr_pos + slideAmount > lastAllowedPos)
+        slideAmount = lastAllowedPos - curr_pos;
+
+    return slideAmount;
+}
+
 void SlideBuffer::readStreamToHost( long *slideAmount )
 {
     // Limit the slide amount so that it doesn't exceed the file
     // stream boundaries
-    long curr_pos = ftell( srcStream );
-    long lastAllowedPos = fileBytes - bufferBytes;
-
-    if (curr_pos + *slideAmount < 0)
-        *slideAmount = -curr_pos;
-    else if (curr_pos + *slideAmount > lastAllowedPos)
-        *slideAmount = lastAllowedPos - curr_pos;
+    *slideAmount = limitSlideAmount( *slideAmount );
 
     // If slide amount is zero, do nothing
     if (*slideAmount == 0)
@@ -26,6 +35,7 @@ void SlideBuffer::readStreamToHost( long *slideAmount )
     if (readAmount > bufferBytes)
         readAmount = bufferBytes;
 
+    size_t curr_pos  = getCurrentDataPos();
     size_t read_pos  = curr_pos + (*slideAmount > 0 && *slideAmount <= bufferBytes ? bufferBytes : *slideAmount);
     size_t final_pos = curr_pos + *slideAmount;
 

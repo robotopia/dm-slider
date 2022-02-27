@@ -41,18 +41,9 @@ long VDIFBuffer::filePosToDataPos( long pos )
 
 void VDIFBuffer::readStreamToHost( long *slideAmount )
 {
-    // Get the current position in the file (but "minus"
-    // the VDIF frame headers)
-    long data_pos = filePosToDataPos( ftell( srcStream ) );
-
     // Limit the slide amount so that it doesn't exceed the file
     // stream boundaries
-    long lastAllowedPos = fileBytes - bufferBytes;
-
-    if (data_pos + *slideAmount < 0)
-        *slideAmount = -data_pos;
-    else if (data_pos + *slideAmount > lastAllowedPos)
-        *slideAmount = lastAllowedPos - data_pos;
+    *slideAmount = limitSlideAmount( *slideAmount );
 
     // If slide amount is zero, do nothing
     if (*slideAmount == 0)
@@ -62,6 +53,7 @@ void VDIFBuffer::readStreamToHost( long *slideAmount )
     if (readAmount > bufferBytes)
         readAmount = bufferBytes;
 
+    size_t data_pos  = getCurrentDataPos();
     size_t read_pos  = data_pos + (*slideAmount > 0 && *slideAmount <= bufferBytes ? bufferBytes : *slideAmount);
     size_t final_pos = data_pos + *slideAmount;
 
@@ -135,7 +127,6 @@ void VDIFBuffer::setSrcFile( const char *srcFile, const char *mode )
         VDIFHeaderBytes = getVDIFHeaderBytes( &vhdr );
         VDIFDataBytes   = VDIFFrameBytes - VDIFHeaderBytes;
 
-
         // Check that there is, indeed, a whole number of frames.
         // If there isn't, truncate and pretend that there is.
         if (rawFileBytes % VDIFFrameBytes != 0)
@@ -147,5 +138,20 @@ void VDIFBuffer::setSrcFile( const char *srcFile, const char *mode )
         // ...and the data size (which we'll hijack "fileBytes" with)
         fileBytes = nFrames * (VDIFFrameBytes - VDIFHeaderBytes);
     }
+}
 
+void VDIFBuffer::fillBuffer()
+{
+    if (srcStream == NULL)
+        return;
+
+    // Read in the data
+    fread( bufferHost, bufferBytes, 1, srcStream );
+    fseek( srcStream, -bufferBytes, SEEK_CUR );
+
+    // Send to GPU
+    gpuErrchk( cudaMemcpy( bufferDevice, bufferHost, bufferBytes, cudaMemcpyHostToDevice ) );
+
+    // Reset offset
+    offset = 0;
 }

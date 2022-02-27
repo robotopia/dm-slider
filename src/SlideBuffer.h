@@ -26,6 +26,19 @@ class SlideBuffer
         size_t  fileBytes;    // The size of the file in bytes
 
         /**
+         * Limit the given slide amount so that a slide of that
+         * size would not exceed the file's boundaries.
+         *
+         * If the input slide amount is too big for the given file,
+         * the output slide amount is set to the maximum possible size
+         * without exceeding the file boundaries.
+         *
+         * @param slideAmount The input slide amount
+         * @return The output slide amount
+         */
+        long limitSlideAmount( long slideAmount );
+
+        /**
          * Utility function for reading bytes from a file stream,
          * but keeping the file position indicator at the *beginning*
          * of a block of data of size bufferBytes
@@ -58,6 +71,11 @@ class SlideBuffer
          * @param[in,out] slideAmount The amount to slide, in bytes
          */
         virtual void readStreamToHost( long *slideAmount );
+
+        /*
+         * Get the current data position
+         */
+        virtual inline size_t getCurrentDataPos() { return ftell( srcStream ); }
 
     public:
 
@@ -108,7 +126,7 @@ class SlideBuffer
          * This reads in a whole buffer's worth of data from the file stream
          * and loads it to the GPU
          */
-        void fillBuffer();
+        virtual void fillBuffer();
 
         /**
          * Copy the current contents of the GPU buffer to host

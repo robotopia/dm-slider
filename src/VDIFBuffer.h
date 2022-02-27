@@ -51,6 +51,11 @@ class VDIFBuffer : public SlideBuffer
          */
         long dataPosToFilePos( long pos = -1 );
 
+        /*
+         * Get the current data position
+         */
+        inline size_t getCurrentDataPos() { return filePosToDataPos( ftell( srcStream ) ); }
+
     protected:
 
         vdif_header vhdr; // The VDIF header (defined in vdifio.h)
@@ -81,6 +86,14 @@ class VDIFBuffer : public SlideBuffer
          * @param mode    The I/O mode (same as fopen())
          */
         void setSrcFile( const char *srcFile, const char *mode = "r" );
+
+        /**
+         * Fill the buffer and send to GPU.
+         *
+         * This reads in a whole buffer's worth of data from the VDIF file
+         * and loads it to the GPU
+         */
+        void fillBuffer();
 
         /**
          * Constructor for VDIFBuffer class
