@@ -1,7 +1,8 @@
 #ifndef __CUDAERRORCHECKING_H__
 #define __CUDAERRORCHECKING_H__
 
-#include <cstdlib>
+#include <stdlib.h>
+#include <stdio.h>
 #include <cuda_runtime.h>
 
 using namespace std;
