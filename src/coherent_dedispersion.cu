@@ -2,15 +2,15 @@
 #include <cuComplex.h>
 #include "../src/cudaErrorChecking.h"
 
-//#include <GL/gl.h>
-//#include <GL/glut.h>
-
 #include <GL/glew.h>
-#define GLFW_DLL
 #include <GLFW/glfw3.h>
 
 #include <stdlib.h>
 #include <stdio.h>
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
 
 // GLUT-related constants
 #define OPEN_FILE  1
@@ -21,10 +21,12 @@ static double ypos;
 static bool drag_mode;
 
 // Window states
-static double lview;
-static double rview;
 static float windowWidth;
 static float windowHeight;
+
+// View states
+static float tscale;  // 0.0 <  tscale  <= 1.0
+static float toffset; // 0.0 <= toffset <= 1.0 - tscale
 
 /**
  * Convert a VDIF buffer into an array of floats
@@ -243,8 +245,8 @@ int main( int argc, char *argv[] )
     printf( "OpenGL version supported %s\n", version );
 
     // Tell GL to only draw onto a pixel if the shape is closer to the viewer
-    glEnable( GL_DEPTH_TEST ); // enable depth-testing
-    glDepthFunc( GL_LESS ); // depth-testing interprets a smaller value as "closer"
+    //glEnable( GL_DEPTH_TEST ); // enable depth-testing
+    //glDepthFunc( GL_LESS ); // depth-testing interprets a smaller value as "closer"
 
     // Define a triangle
     float points[] = {
@@ -266,11 +268,16 @@ int main( int argc, char *argv[] )
     glBindBuffer( GL_ARRAY_BUFFER, vbo );
     glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, NULL );
 
+    // Set up camera
+
     const char* vertex_shader =
         "#version 400\n"
-        "in vec3 vp;"
+        "in vec3 position;"
+        "uniform mat4 Model;"
+        "uniform mat4 View;"
+        "uniform mat4 Projection;"
         "void main() {"
-        "  gl_Position = vec4(vp, 1.0);"
+        "  gl_Position = Projection * View * Model * vec4(position, 1.0);"
         "}";
 
     const char* fragment_shader =
@@ -292,14 +299,25 @@ int main( int argc, char *argv[] )
     glAttachShader(shader_programme, vs);
     glLinkProgram(shader_programme);
 
-    // Set up view
-    lview = -1.0;
-    rview = 1.0;
-    glMatrixMode( GL_PROJECTION );
-    glLoadIdentity();
-    //glOrtho( 0.0f, windowWidth, windowHeight, 0.0f, 0.0f, 1.0f );
-    glOrtho( 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f );
-    //glMatrixMode( GL_MODELVIEW );
+    // Set up camera
+    glm::mat4 Model( 1.0f ), View( 1.0f ), Projection;
+    Projection = glm::ortho( -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f );
+
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 4; j++)
+            fprintf( stderr, "%f ", Projection[i][j] );
+        fprintf( stderr, "\n" );
+    }
+
+    GLint model = glGetUniformLocation( shader_programme, "Model" );
+    glUniformMatrix4fv( model, 1, GL_FALSE, glm::value_ptr(Model) );
+ 
+    GLint view = glGetUniformLocation( shader_programme, "View" );
+    glUniformMatrix4fv( view, 1, GL_FALSE, glm::value_ptr(View) );
+ 
+    GLint projection = glGetUniformLocation( shader_programme, "Projection" );
+    glUniformMatrix4fv( projection, 1, GL_FALSE, glm::value_ptr(Projection) );
 
     while(!glfwWindowShouldClose(window))
     {
@@ -307,10 +325,12 @@ int main( int argc, char *argv[] )
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(shader_programme);
         glBindVertexArray(vao);
+
         // draw points 0-3 from the currently bound VAO with current in-use shader
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         // update other events like input handling
         glfwPollEvents();
+
         // put the stuff we've been drawing onto the display
         glfwSwapBuffers(window);
     }
