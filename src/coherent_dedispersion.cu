@@ -292,17 +292,14 @@ int main( int argc, char *argv[] )
     glAttachShader(shader_programme, vs);
     glLinkProgram(shader_programme);
 
-    /*
-    // At the moment, this doesn't seem to do anything
     // Set up view
     lview = -1.0;
     rview = 1.0;
     glMatrixMode( GL_PROJECTION );
     glLoadIdentity();
     //glOrtho( 0.0f, windowWidth, windowHeight, 0.0f, 0.0f, 1.0f );
-    glOrtho( 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f );
-    glMatrixMode( GL_MODELVIEW );
-    */
+    glOrtho( 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f );
+    //glMatrixMode( GL_MODELVIEW );
 
     while(!glfwWindowShouldClose(window))
     {
