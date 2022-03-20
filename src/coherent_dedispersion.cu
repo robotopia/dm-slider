@@ -15,9 +15,16 @@
 // GLUT-related constants
 #define OPEN_FILE  1
 
-// Mouse position
+// Mouse states
 static double xpos;
 static double ypos;
+static bool drag_mode;
+
+// Window states
+static double lview;
+static double rview;
+static float windowWidth;
+static float windowHeight;
 
 /**
  * Convert a VDIF buffer into an array of floats
@@ -101,27 +108,6 @@ __global__ void cudaStokesI( cuFloatComplex *data, float *stokesI )
     stokesI[i] = X.x*X.x + X.y*X.y + Y.x*Y.x + Y.y*Y.y;
 }
 
-// Clears the current window and draws a triangle.
-void display()
-{
-    // Set every pixel in the frame buffer to the current clear color.
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    // Drawing is done by specifying a sequence of vertices.  The way these
-    // vertices are connected (or not connected) depends on the argument to
-    // glBegin.  GL_POLYGON constructs a filled polygon.
-    glBegin(GL_POLYGON);
-    {
-        glColor3f(1, 0, 0); glVertex3f(-0.6, -0.75, 0.5);
-        glColor3f(0, 1, 0); glVertex3f(0.6, -0.75, 0);
-        glColor3f(0, 0, 1); glVertex3f(0, 0.75, 0);
-    }
-    glEnd();
-
-    // Flush drawing command buffer to make drawing happen as soon as possible.
-    glFlush();
-}
-
 
 /*
 int glut_main( int argc, char **argv )
@@ -192,10 +178,29 @@ int glut_main( int argc, char **argv )
 
 void mouse_button_callback( GLFWwindow *window, int button, int action, int mods )
 {
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+    if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
-        glfwGetCursorPos( window, &xpos, &ypos );
-        fprintf( stderr, "(x, y) = (%lf, %lf)\n", xpos, ypos );
+        switch (action)
+        {
+            case GLFW_PRESS:
+                glfwGetCursorPos( window, &xpos, &ypos );
+                drag_mode = true;
+                fprintf( stderr, "Clicked: (x, y) = (%lf, %lf)\n", xpos, ypos );
+                break;
+            case GLFW_RELEASE:
+                glfwGetCursorPos( window, &xpos, &ypos );
+                drag_mode = false;
+                fprintf( stderr, "Released: (x, y) = (%lf, %lf)\n", xpos, ypos );
+                break;
+        }
+    }
+}
+
+void cursor_position_callback( GLFWwindow* window, double xpos, double ypos )
+{
+    if (drag_mode)
+    {
+        fprintf( stderr, "Dragging: (x, y) = (%lf, %lf)\n", xpos, ypos );
     }
 }
 
@@ -211,7 +216,9 @@ int main( int argc, char *argv[] )
         return EXIT_FAILURE;
     }
 
-    GLFWwindow* window = glfwCreateWindow( 640, 480, "Hello Triangle", NULL, NULL );
+    windowWidth = 640;
+    windowHeight = 480;
+    GLFWwindow* window = glfwCreateWindow( windowWidth, windowHeight, "DM Slider", NULL, NULL );
     if (!window)
     {
         fprintf(stderr, "ERROR: could not open window with GLFW3\n");
@@ -219,7 +226,11 @@ int main( int argc, char *argv[] )
         return EXIT_FAILURE;
     }
     glfwMakeContextCurrent( window );
+
+    // Set up mouse
     glfwSetMouseButtonCallback( window, mouse_button_callback );
+    glfwSetCursorPosCallback( window, cursor_position_callback );
+    drag_mode = false;
 
     // Start GLEW extension handler
     glewExperimental = GL_TRUE;
@@ -280,6 +291,18 @@ int main( int argc, char *argv[] )
     glAttachShader(shader_programme, fs);
     glAttachShader(shader_programme, vs);
     glLinkProgram(shader_programme);
+
+    /*
+    // At the moment, this doesn't seem to do anything
+    // Set up view
+    lview = -1.0;
+    rview = 1.0;
+    glMatrixMode( GL_PROJECTION );
+    glLoadIdentity();
+    //glOrtho( 0.0f, windowWidth, windowHeight, 0.0f, 0.0f, 1.0f );
+    glOrtho( 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f );
+    glMatrixMode( GL_MODELVIEW );
+    */
 
     while(!glfwWindowShouldClose(window))
     {
