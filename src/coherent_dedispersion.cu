@@ -264,9 +264,9 @@ int main( int argc, char *argv[] )
     GLuint vao = 0;
     glGenVertexArrays( 1, &vao );
     glBindVertexArray( vao );
-    glEnableVertexAttribArray( 0 );
     glBindBuffer( GL_ARRAY_BUFFER, vbo );
     glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, NULL );
+    glEnableVertexAttribArray( 0 );
 
     // Set up camera
 
@@ -277,7 +277,8 @@ int main( int argc, char *argv[] )
         "uniform mat4 View;"
         "uniform mat4 Projection;"
         "void main() {"
-        "  gl_Position = Projection * View * Model * vec4(position, 1.0);"
+        "  gl_Position = vec4(position, 1.0);"
+        "  /* gl_Position = Projection * View * Model * vec4(position, 1.0); */"
         "}";
 
     const char* fragment_shader =
@@ -306,7 +307,7 @@ int main( int argc, char *argv[] )
     for (int i = 0; i < 4; i++)
     {
         for (int j = 0; j < 4; j++)
-            fprintf( stderr, "%f ", Projection[i][j] );
+            fprintf( stderr, "%f ", Model[i][j] );
         fprintf( stderr, "\n" );
     }
 
