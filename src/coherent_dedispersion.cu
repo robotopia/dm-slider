@@ -12,21 +12,31 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#include <cuda_gl_interop.h>
+
 // GLUT-related constants
 #define OPEN_FILE  1
 
 // Mouse states
 static double xpos;
 static double ypos;
+static double xprev;
+static double yprev;
 static bool drag_mode;
 
 // Window states
 static float windowWidth;
 static float windowHeight;
 
+#define XNORM(xpos)  ( (xpos)/windowWidth - 0.5)
+#define YNORM(ypos)  (-(ypos)/windowWidth + 0.5)
+
 // View states
 static float tscale;  // 0.0 <  tscale  <= 1.0
 static float toffset; // 0.0 <= toffset <= 1.0 - tscale
+
+static struct cudaGraphicsResource *cudaPointsResource;
+float *d_points;
 
 /**
  * Convert a VDIF buffer into an array of floats
@@ -182,27 +192,49 @@ void mouse_button_callback( GLFWwindow *window, int button, int action, int mods
 {
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
+        size_t size;
         switch (action)
         {
             case GLFW_PRESS:
-                glfwGetCursorPos( window, &xpos, &ypos );
+                glfwGetCursorPos( window, &xprev, &yprev );
                 drag_mode = true;
-                fprintf( stderr, "Clicked: (x, y) = (%lf, %lf)\n", xpos, ypos );
+                gpuErrchk( cudaGraphicsMapResources( 1, &cudaPointsResource, 0 ) );
+                gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&d_points, &size, cudaPointsResource ) );
                 break;
             case GLFW_RELEASE:
-                glfwGetCursorPos( window, &xpos, &ypos );
                 drag_mode = false;
-                fprintf( stderr, "Released: (x, y) = (%lf, %lf)\n", xpos, ypos );
+                gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaPointsResource, 0 ) );
                 break;
         }
     }
+}
+
+__global__
+void cudaRotatePoints( float *points, float rad )
+{
+    // Assumes "points" is an array of sets of (x,y,z) coords
+    // (i.e. three floats per point).
+    int i = blockIdx.x*blockDim.x + threadIdx.x;
+    float x = points[3*i];
+    float y = points[3*i+1];
+    float s, c;
+    sincosf( rad, &s, &c );
+    points[3*i]   = c*x - s*y;
+    points[3*i+1] = s*x + c*y;
 }
 
 void cursor_position_callback( GLFWwindow* window, double xpos, double ypos )
 {
     if (drag_mode)
     {
-        fprintf( stderr, "Dragging: (x, y) = (%lf, %lf)\n", xpos, ypos );
+        float rad = atan2(YNORM(ypos),  XNORM(xpos)) -
+                    atan2(YNORM(yprev), XNORM(xprev));
+
+        // OpenGL CUDA interoperability
+        cudaRotatePoints<<<1,4>>>( d_points, rad );
+
+        xprev = xpos;
+        yprev = ypos;
     }
 }
 
@@ -283,7 +315,7 @@ int main( int argc, char *argv[] )
     //glEnable( GL_DEPTH_TEST ); // enable depth-testing
     //glDepthFunc( GL_LESS ); // depth-testing interprets a smaller value as "closer"
 
-    // Define a triangle
+    // Define some points (to make a square)
     float points[] = {
         0.5f,  0.5f,  0.0f,
         0.5f, -0.5f,  0.0f,
@@ -291,10 +323,16 @@ int main( int argc, char *argv[] )
         -0.5f, -0.5f,  0.0f
     };
 
+    // Define a place for the points to live in global memory
+    //gpuErrchk( cudaMalloc( (void **)&d_points, sizeof(points) ) );
+
     GLuint vbo = 0;
     glGenBuffers( 1, &vbo );
     glBindBuffer( GL_ARRAY_BUFFER, vbo );
     glBufferData( GL_ARRAY_BUFFER, 12 * sizeof(float), points, GL_STATIC_DRAW );
+
+    // Prepare a resource for CUDA interoperability
+    cudaGraphicsGLRegisterBuffer( &cudaPointsResource, vbo, cudaGraphicsMapFlagsNone );
 
     GLuint vao = 0;
     glGenVertexArrays( 1, &vao );
@@ -348,6 +386,8 @@ int main( int argc, char *argv[] )
         // put the stuff we've been drawing onto the display
         glfwSwapBuffers(window);
     }
+
+    //gpuErrchk( cudaFree( d_points ) );
 
     // close GL context and any other GLFW resources
     glfwTerminate();
