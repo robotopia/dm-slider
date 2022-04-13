@@ -321,15 +321,10 @@ int main( int argc, char *argv[] )
     glLinkProgram(shader_programme);
 
     // Set up camera
-    glm::mat4 Model( 1.0f ), View( 1.0f ), Projection;
-    Projection = glm::ortho( -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f );
+    glm::mat4 Model( 1.0f ), View( 1.0f ), Projection( 1.0f );
+    //Projection = glm::ortho( -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f );
 
-    for (int i = 0; i < 4; i++)
-    {
-        for (int j = 0; j < 4; j++)
-            fprintf( stderr, "%f ", Model[i][j] );
-        fprintf( stderr, "\n" );
-    }
+    glUseProgram(shader_programme);
 
     GLint model = glGetUniformLocation( shader_programme, "Model" );
     glUniformMatrix4fv( model, 1, GL_FALSE, glm::value_ptr(Model) );
@@ -344,8 +339,6 @@ int main( int argc, char *argv[] )
     {
         // wipe the drawing surface clear
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glUseProgram(shader_programme);
-        glBindVertexArray(vao);
 
         // draw points 0-3 from the currently bound VAO with current in-use shader
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
