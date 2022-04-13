@@ -224,7 +224,7 @@ char *loadFileContentsAsStr( const char *filename )
     rewind( f );
 
     // Allocate memory in a string buffer
-    char *str = (char *)malloc( size );
+    char *str = (char *)malloc( size + 1 );
 
     // Read in the file contents to the string buffer
     long nread = fread( str, 1, size, f );
@@ -234,6 +234,9 @@ char *loadFileContentsAsStr( const char *filename )
                 "contents of %s truncated (%ld/%ld bytes read)\n",
                 filename, nread, size );
     }
+
+    // Put a null termination at the end
+    str[size] = '\0';
 
     return str;
 }
@@ -302,14 +305,8 @@ int main( int argc, char *argv[] )
 
     // Set up camera
 
-    const char* vertex_shader = loadFileContentsAsStr( "vert.shader" );
-
-    const char* fragment_shader =
-        "#version 400\n"
-        "out vec4 frag_colour;"
-        "void main() {"
-        "  frag_colour = vec4(0.5, 0.0, 0.5, 1.0);"
-        "}";
+    const char* vertex_shader   = loadFileContentsAsStr( "vert.shader" );
+    const char* fragment_shader = loadFileContentsAsStr( "frag.shader" );
 
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vs, 1, &vertex_shader, NULL);
