@@ -29,7 +29,7 @@ static float windowWidth;
 static float windowHeight;
 
 #define XNORM(xpos)  ( (xpos)/windowWidth - 0.5)
-#define YNORM(ypos)  (-(ypos)/windowWidth + 0.5)
+#define YNORM(ypos)  (-(ypos)/windowHeight + 0.5)
 
 // View states
 static float tscale;  // 0.0 <  tscale  <= 1.0
