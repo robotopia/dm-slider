@@ -206,6 +206,38 @@ void cursor_position_callback( GLFWwindow* window, double xpos, double ypos )
     }
 }
 
+// This function allocates memory
+char *loadFileContentsAsStr( const char *filename )
+{
+    // Open the file for reading
+    FILE *f = fopen( filename, "r" );
+    if (f == NULL)
+    {
+        fprintf( stderr, "error: loadFileContentsAsStr: unable to open file "
+                "%s\n", filename );
+        exit(EXIT_FAILURE);
+    }
+
+    // Get the size of the file
+    fseek( f, 0L, SEEK_END );
+    long size = ftell( f );
+    rewind( f );
+
+    // Allocate memory in a string buffer
+    char *str = (char *)malloc( size );
+
+    // Read in the file contents to the string buffer
+    long nread = fread( str, 1, size, f );
+    if (nread != size)
+    {
+        fprintf( stderr, "warning: loadFileContentsAsStr: reading in "
+                "contents of %s truncated (%ld/%ld bytes read)\n",
+                filename, nread, size );
+    }
+
+    return str;
+}
+
 int main( int argc, char *argv[] )
 {
     // Start GL context and O/S window using the GLFW helper library
@@ -270,16 +302,7 @@ int main( int argc, char *argv[] )
 
     // Set up camera
 
-    const char* vertex_shader =
-        "#version 400\n"
-        "in vec3 position;"
-        "uniform mat4 Model;"
-        "uniform mat4 View;"
-        "uniform mat4 Projection;"
-        "void main() {"
-        "  gl_Position = vec4(position, 1.0);"
-        "  /* gl_Position = Projection * View * Model * vec4(position, 1.0); */"
-        "}";
+    const char* vertex_shader = loadFileContentsAsStr( "vert.shader" );
 
     const char* fragment_shader =
         "#version 400\n"
