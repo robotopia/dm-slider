@@ -227,12 +227,12 @@ void cudaRotatePoints( float *points, float rad )
     // Assumes "points" is an array of sets of (x,y,z) coords
     // (i.e. three floats per point).
     int i = blockIdx.x*blockDim.x + threadIdx.x;
-    float x = points[3*i];
-    float y = points[3*i+1];
+    float x = points[2*i];
+    float y = points[2*i+1];
     float s, c;
     sincosf( rad, &s, &c );
-    points[3*i]   = c*x - s*y;
-    points[3*i+1] = s*x + c*y;
+    points[2*i]   = c*x - s*y;
+    points[2*i+1] = s*x + c*y;
 }
 
 void cursor_position_callback( GLFWwindow* window, double xpos, double ypos )
@@ -329,10 +329,10 @@ int main( int argc, char *argv[] )
 
     // Define some points (to make a square)
     float points[] = {
-        0.5f,  0.5f,  0.0f,
-        0.5f, -0.5f,  0.0f,
-        -0.5f, 0.5f,  0.0f,
-        -0.5f, -0.5f,  0.0f
+        0.5f,  0.5f,
+        0.5f, -0.5f,
+        -0.5f, 0.5f,
+        -0.5f, -0.5f
     };
 
     // Define a place for the points to live in global memory
@@ -341,7 +341,7 @@ int main( int argc, char *argv[] )
     GLuint vbo = 0;
     glGenBuffers( 1, &vbo );
     glBindBuffer( GL_ARRAY_BUFFER, vbo );
-    glBufferData( GL_ARRAY_BUFFER, 12 * sizeof(float), points, GL_STATIC_DRAW );
+    glBufferData( GL_ARRAY_BUFFER, 8 * sizeof(float), points, GL_STATIC_DRAW );
 
     // Prepare a resource for CUDA interoperability
     cudaGraphicsGLRegisterBuffer( &cudaPointsResource, vbo, cudaGraphicsMapFlagsNone );
@@ -350,8 +350,34 @@ int main( int argc, char *argv[] )
     glGenVertexArrays( 1, &vao );
     glBindVertexArray( vao );
     glBindBuffer( GL_ARRAY_BUFFER, vbo );
-    glVertexAttribPointer( 0, 3, GL_FLOAT, GL_FALSE, 0, NULL );
+    glVertexAttribPointer( 0, 2, GL_FLOAT, GL_FALSE, 0, NULL );
     glEnableVertexAttribArray( 0 );
+
+    // Texture
+    GLuint tex;
+    glGenTextures( 1, &tex );
+    glBindTexture( GL_TEXTURE_2D, tex );
+
+    float texCoords[] = {
+        0.0f, 0.0f,
+        0.0f, 1.0f,
+        1.0f, 0.0f,
+        1.0f, 1.0f
+    };
+
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+
+    float image[] = { 0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f,
+                      0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
+                      0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f,
+                      0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f,
+                      0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f,
+                      0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f };
+
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, 6, 6, 0, GL_RED, GL_FLOAT, image );
 
     // Set up camera
 
