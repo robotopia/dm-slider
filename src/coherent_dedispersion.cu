@@ -18,8 +18,6 @@
 #define OPEN_FILE  1
 
 // Mouse states
-static double xpos;
-static double ypos;
 static double xprev;
 static double yprev;
 static bool drag_mode;
@@ -30,10 +28,6 @@ static float windowHeight;
 
 #define XNORM(xpos)  ( (xpos)/windowWidth - 0.5)
 #define YNORM(ypos)  (-(ypos)/windowHeight + 0.5)
-
-// View states
-static float tscale;  // 0.0 <  tscale  <= 1.0
-static float toffset; // 0.0 <= toffset <= 1.0 - tscale
 
 static struct cudaGraphicsResource *cudaPointsResource;
 float *d_points;
