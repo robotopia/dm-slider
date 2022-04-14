@@ -204,6 +204,24 @@ void mouse_button_callback( GLFWwindow *window, int button, int action, int mods
 }
 
 __global__
+void cudaCreateImage( float *image, int centre_x, int centre_y, float dval_per_pixel )
+{
+    // Makes an image of pixels ranging from 0.0 to 1.0, arranged in a gradient
+    // according to the specified direction
+    int x = blockIdx.x * blockDim.x + threadIdx.x;
+    int y = blockIdx.x * blockDim.y + threadIdx.y;
+    int i = y*blockDim.y + x;
+
+    // Get the distance from the named centre
+    int Dx = x - centre_x;
+    int Dy = y - centre_y;
+    float dist_in_pixels = sqrt( (float)(Dx*Dx + Dy*Dy) );
+
+    // Set the pixel value, with the peak being at the centre
+    image[i] = 1.0 - dval_per_pixel*dist_in_pixels;
+}
+
+__global__
 void cudaRotatePoints( float *points, float rad )
 {
     // Assumes "points" is an array of sets of (x,y,z) coords
