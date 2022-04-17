@@ -401,8 +401,7 @@ int main( int argc, char *argv[] )
     glLinkProgram(shader_programme);
 
     // Set up camera
-    glm::mat4 Model( 1.0f ), View( 1.0f ), Projection( 1.0f );
-    //Projection = glm::ortho( -1.0f, 1.0f, -1.0f, 1.0f, -1.0f, 1.0f );
+    glm::mat4 Model( 1.0f ), View( 1.0f );
 
     glUseProgram(shader_programme);
 
@@ -412,9 +411,6 @@ int main( int argc, char *argv[] )
     GLint view = glGetUniformLocation( shader_programme, "View" );
     glUniformMatrix4fv( view, 1, GL_FALSE, glm::value_ptr(View) );
  
-    GLint projection = glGetUniformLocation( shader_programme, "Projection" );
-    glUniformMatrix4fv( projection, 1, GL_FALSE, glm::value_ptr(Projection) );
-
     while(!glfwWindowShouldClose(window))
     {
         // wipe the drawing surface clear
