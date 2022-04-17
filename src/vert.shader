@@ -1,7 +1,7 @@
 #version 400
 
-in vec2 position;
-in vec2 aTexCoord;
+layout (location = 0) in vec2 position;
+layout (location = 1) in vec2 aTexCoord;
 
 uniform mat4 Model;
 uniform mat4 View;

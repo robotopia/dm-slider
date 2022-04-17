@@ -224,11 +224,11 @@ void cudaCreateImage( float *image, int centre_x, int centre_y, float dval_per_p
 __global__
 void cudaRotatePoints( float *points, float rad )
 {
-    // Assumes "points" is an array of sets of (x,y,z) coords
-    // (i.e. three floats per point).
+    // Assumes "points" is an array of sets of (x,y) coords
+    // (i.e. two floats per point), with stride 4
     int i = blockIdx.x*blockDim.x + threadIdx.x;
-    float x = points[2*i];
-    float y = points[2*i+1];
+    float x = points[4*i];
+    float y = points[4*i+1];
     float s, c;
     sincosf( rad, &s, &c );
     points[2*i]   = c*x - s*y;
@@ -329,10 +329,11 @@ int main( int argc, char *argv[] )
 
     // Define some points (to make a square)
     float points[] = {
-        0.5f,  0.5f,
-        0.5f, -0.5f,
-        -0.5f, 0.5f,
-        -0.5f, -0.5f
+        // vertices   // texcoords
+         0.5f,  0.5f, 1.0f, 1.0f,
+         0.5f, -0.5f, 1.0f, 0.0f,
+        -0.5f,  0.5f, 0.0f, 1.0f,
+        -0.5f, -0.5f, 0.0f, 0.0f
     };
 
     // Define a place for the points to live in global memory
@@ -341,7 +342,7 @@ int main( int argc, char *argv[] )
     GLuint vbo = 0;
     glGenBuffers( 1, &vbo );
     glBindBuffer( GL_ARRAY_BUFFER, vbo );
-    glBufferData( GL_ARRAY_BUFFER, 8 * sizeof(float), points, GL_STATIC_DRAW );
+    glBufferData( GL_ARRAY_BUFFER, 16 * sizeof(float), points, GL_STATIC_DRAW );
 
     // Prepare a resource for CUDA interoperability
     cudaGraphicsGLRegisterBuffer( &cudaPointsResource, vbo, cudaGraphicsMapFlagsNone );
@@ -350,20 +351,16 @@ int main( int argc, char *argv[] )
     glGenVertexArrays( 1, &vao );
     glBindVertexArray( vao );
     glBindBuffer( GL_ARRAY_BUFFER, vbo );
-    glVertexAttribPointer( 0, 2, GL_FLOAT, GL_FALSE, 0, NULL );
+
+    glVertexAttribPointer( 0, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), NULL );
     glEnableVertexAttribArray( 0 );
+    glVertexAttribPointer( 1, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void *)(2*sizeof(float)) );
+    glEnableVertexAttribArray( 1 );
 
     // Texture
     GLuint tex;
     glGenTextures( 1, &tex );
     glBindTexture( GL_TEXTURE_2D, tex );
-
-    float texCoords[] = {
-        0.0f, 0.0f,
-        0.0f, 1.0f,
-        1.0f, 0.0f,
-        1.0f, 1.0f
-    };
 
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
@@ -378,8 +375,6 @@ int main( int argc, char *argv[] )
                       0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f };
 
     glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, 6, 6, 0, GL_RED, GL_FLOAT, image );
-    glVertexAttribPointer( 1, 2, GL_FLOAT, GL_FALSE, 0, NULL );
-    glEnableVertexAttribArray( 1 );
 
     glBindTexture( GL_TEXTURE_2D, tex );
 
@@ -415,6 +410,9 @@ int main( int argc, char *argv[] )
     {
         // wipe the drawing surface clear
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        //glActiveTexture( GL_TEXTURE0 );
+        //glBindTexture( GL_TEXTURE_2D, tex );
 
         // draw points 0-3 from the currently bound VAO with current in-use shader
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
