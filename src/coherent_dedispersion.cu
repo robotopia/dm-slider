@@ -227,12 +227,13 @@ void cudaRotatePoints( float *points, float rad )
     // Assumes "points" is an array of sets of (x,y) coords
     // (i.e. two floats per point), with stride 4
     int i = blockIdx.x*blockDim.x + threadIdx.x;
-    float x = points[4*i];
-    float y = points[4*i+1];
+    int stride = 4;
+    float x = points[stride*i];
+    float y = points[stride*i+1];
     float s, c;
     sincosf( rad, &s, &c );
-    points[2*i]   = c*x - s*y;
-    points[2*i+1] = s*x + c*y;
+    points[stride*i]   = c*x - s*y;
+    points[stride*i+1] = s*x + c*y;
 }
 
 void cursor_position_callback( GLFWwindow* window, double xpos, double ypos )
