@@ -379,7 +379,7 @@ int main( int argc, char *argv[] )
 
     glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, 6, 6, 0, GL_RED, GL_FLOAT, image );
     glVertexAttribPointer( 1, 2, GL_FLOAT, GL_FALSE, 0, NULL );
-    glEnableVertexAttribArray(1);
+    glEnableVertexAttribArray( 1 );
 
     glBindTexture( GL_TEXTURE_2D, tex );
 
