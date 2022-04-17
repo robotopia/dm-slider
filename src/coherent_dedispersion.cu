@@ -30,6 +30,9 @@ static float windowHeight;
 #define YNORM(ypos)  (-(ypos)/windowHeight + 0.5)
 
 static struct cudaGraphicsResource *cudaPointsResource;
+static struct cudaGraphicsResource *cudaImageResource;
+cudaArray *d_image_array;
+texture<float, 2, cudaReadModeElementType> d_image;
 float *d_points;
 
 /**
@@ -186,18 +189,24 @@ void mouse_button_callback( GLFWwindow *window, int button, int action, int mods
 {
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
-        size_t size;
+        //size_t size;
+        //struct cudaChannelFormatDesc desc;
         switch (action)
         {
             case GLFW_PRESS:
                 glfwGetCursorPos( window, &xprev, &yprev );
                 drag_mode = true;
-                gpuErrchk( cudaGraphicsMapResources( 1, &cudaPointsResource, 0 ) );
-                gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&d_points, &size, cudaPointsResource ) );
+                //gpuErrchk( cudaGraphicsMapResources( 1, &cudaPointsResource, 0 ) );
+                //gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&d_points, &size, cudaPointsResource ) );
+                gpuErrchk( cudaGraphicsMapResources( 1, &cudaImageResource, 0 ) );
+                gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &d_image_array, cudaImageResource, 0, 0 ) );
+                //gpuErrchk( cudaGetChannelDesc( &desc, d_image_array ) );
+                gpuErrchk( cudaBindTextureToArray( d_image, d_image_array ) );
                 break;
             case GLFW_RELEASE:
                 drag_mode = false;
-                gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaPointsResource, 0 ) );
+                //gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaPointsResource, 0 ) );
+                gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaImageResource, 0 ) );
                 break;
         }
     }
@@ -236,15 +245,24 @@ void cudaRotatePoints( float *points, float rad )
     points[stride*i+1] = s*x + c*y;
 }
 
+__global__
+void cudaChangeBrightness( float *image, float amount )
+{
+    int i = blockIdx.x*blockDim.x + threadIdx.x;
+    image[i] += amount;
+}
+
 void cursor_position_callback( GLFWwindow* window, double xpos, double ypos )
 {
     if (drag_mode)
     {
         float rad = atan2(YNORM(ypos),  XNORM(xpos)) -
                     atan2(YNORM(yprev), XNORM(xprev));
+        float dy = YNORM(ypos) - YNORM(yprev);
 
         // OpenGL CUDA interoperability
-        cudaRotatePoints<<<1,4>>>( d_points, rad );
+        //cudaRotatePoints<<<1,4>>>( d_points, rad );
+        cudaChangeBrightness<<<1,36>>>( d_image, dy );
 
         xprev = xpos;
         yprev = ypos;
@@ -376,6 +394,8 @@ int main( int argc, char *argv[] )
                       0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f };
 
     glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, 6, 6, 0, GL_RED, GL_FLOAT, image );
+
+    cudaGraphicsGLRegisterImage( &cudaImageResource, tex, GL_TEXTURE_2D, cudaGraphicsMapFlagsNone );
 
     glBindTexture( GL_TEXTURE_2D, tex );
 
