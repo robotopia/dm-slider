@@ -373,11 +373,15 @@ int main( int argc, char *argv[] )
     float image[] = { 0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f,
                       0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
                       0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f,
-                      0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f,
+                      0.3f, 0.4f, 0.5f, 0.6f, 0.0f, 0.8f, // <--- deliberate black pixel
                       0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f,
                       0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f };
 
     glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, 6, 6, 0, GL_RED, GL_FLOAT, image );
+    glVertexAttribPointer( 1, 2, GL_FLOAT, GL_FALSE, 0, NULL );
+    glEnableVertexAttribArray(1);
+
+    glBindTexture( GL_TEXTURE_2D, tex );
 
     // Set up camera
 

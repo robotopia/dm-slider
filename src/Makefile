@@ -4,7 +4,7 @@ OBJECTS = SlideBuffer.o \
           VDIFBuffer.o
 
 test: coherent_dedispersion
-	./$<
+	prime-run ./$<
 
 all: $(OBJECTS)
 
