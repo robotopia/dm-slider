@@ -30,10 +30,12 @@ static float windowHeight;
 #define YNORM(ypos)  (-(ypos)/windowHeight + 0.5)
 
 static struct cudaGraphicsResource *cudaPointsResource;
+float *d_points;
+
 static struct cudaGraphicsResource *cudaImageResource;
 cudaArray *d_image_array;
 texture<float, 2, cudaReadModeElementType> d_image;
-float *d_points;
+cudaSurfaceObject_t surf;
 
 /**
  * Convert a VDIF buffer into an array of floats
@@ -191,6 +193,7 @@ void mouse_button_callback( GLFWwindow *window, int button, int action, int mods
     {
         //size_t size;
         //struct cudaChannelFormatDesc desc;
+        cudaResourceDesc surfDesc;
         switch (action)
         {
             case GLFW_PRESS:
@@ -198,10 +201,10 @@ void mouse_button_callback( GLFWwindow *window, int button, int action, int mods
                 drag_mode = true;
                 //gpuErrchk( cudaGraphicsMapResources( 1, &cudaPointsResource, 0 ) );
                 //gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&d_points, &size, cudaPointsResource ) );
+                //gpuErrchk( cudaGetChannelDesc( &desc, d_image_array ) );
                 gpuErrchk( cudaGraphicsMapResources( 1, &cudaImageResource, 0 ) );
                 gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &d_image_array, cudaImageResource, 0, 0 ) );
-                //gpuErrchk( cudaGetChannelDesc( &desc, d_image_array ) );
-                gpuErrchk( cudaBindTextureToArray( d_image, d_image_array ) );
+                gpuErrchk( cudaCreateSurfaceObject( &surf, &surfDesc ) );
                 break;
             case GLFW_RELEASE:
                 drag_mode = false;
@@ -262,7 +265,7 @@ void cursor_position_callback( GLFWwindow* window, double xpos, double ypos )
 
         // OpenGL CUDA interoperability
         //cudaRotatePoints<<<1,4>>>( d_points, rad );
-        cudaChangeBrightness<<<1,36>>>( d_image, dy );
+        //cudaChangeBrightness<<<1,36>>>( d_image, dy );
 
         xprev = xpos;
         yprev = ypos;
