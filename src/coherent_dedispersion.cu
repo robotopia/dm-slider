@@ -36,6 +36,11 @@ static struct cudaGraphicsResource *cudaImageResource;
 cudaArray *d_image_array;
 texture<float, 2, cudaReadModeElementType> d_image;
 cudaSurfaceObject_t surf;
+cudaResourceDesc surfRes;
+cudaArray *cuArray;
+cudaChannelFormatDesc channelDesc;
+
+int w, h;
 
 /**
  * Convert a VDIF buffer into an array of floats
@@ -191,46 +196,38 @@ void mouse_button_callback( GLFWwindow *window, int button, int action, int mods
 {
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
-        //size_t size;
+        size_t size;
         //struct cudaChannelFormatDesc desc;
-        cudaResourceDesc surfDesc;
         switch (action)
         {
             case GLFW_PRESS:
                 glfwGetCursorPos( window, &xprev, &yprev );
                 drag_mode = true;
-                //gpuErrchk( cudaGraphicsMapResources( 1, &cudaPointsResource, 0 ) );
-                //gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&d_points, &size, cudaPointsResource ) );
+                gpuErrchk( cudaGraphicsMapResources( 1, &cudaPointsResource, 0 ) );
+                gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&d_points, &size, cudaPointsResource ) );
                 //gpuErrchk( cudaGetChannelDesc( &desc, d_image_array ) );
-                gpuErrchk( cudaGraphicsMapResources( 1, &cudaImageResource, 0 ) );
-                gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &d_image_array, cudaImageResource, 0, 0 ) );
-                gpuErrchk( cudaCreateSurfaceObject( &surf, &surfDesc ) );
                 break;
             case GLFW_RELEASE:
                 drag_mode = false;
-                //gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaPointsResource, 0 ) );
-                gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaImageResource, 0 ) );
+                gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaPointsResource, 0 ) );
                 break;
         }
     }
 }
 
 __global__
-void cudaCreateImage( float *image, int centre_x, int centre_y, float dval_per_pixel )
+void cudaCreateImage( cudaSurfaceObject_t surf, int width, int height )
 {
     // Makes an image of pixels ranging from 0.0 to 1.0, arranged in a gradient
-    // according to the specified direction
+    // so that top left is 0.0, bottom right is 1.0
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.x * blockDim.y + threadIdx.y;
-    int i = y*blockDim.y + x;
 
-    // Get the distance from the named centre
-    int Dx = x - centre_x;
-    int Dy = y - centre_y;
-    float dist_in_pixels = sqrt( (float)(Dx*Dx + Dy*Dy) );
+    // Get normalised Manhattan distance
+    float dist = (x + y)/(float)(width + height);
 
     // Set the pixel value, with the peak being at the centre
-    image[i] = 1.0 - dval_per_pixel*dist_in_pixels;
+    surf2Dwrite( dist, surf, x, y );
 }
 
 __global__
@@ -261,10 +258,10 @@ void cursor_position_callback( GLFWwindow* window, double xpos, double ypos )
     {
         float rad = atan2(YNORM(ypos),  XNORM(xpos)) -
                     atan2(YNORM(yprev), XNORM(xprev));
-        float dy = YNORM(ypos) - YNORM(yprev);
+        //float dy = YNORM(ypos) - YNORM(yprev);
 
         // OpenGL CUDA interoperability
-        //cudaRotatePoints<<<1,4>>>( d_points, rad );
+        cudaRotatePoints<<<1,4>>>( d_points, rad );
         //cudaChangeBrightness<<<1,36>>>( d_image, dy );
 
         xprev = xpos;
@@ -402,6 +399,19 @@ int main( int argc, char *argv[] )
 
     glBindTexture( GL_TEXTURE_2D, tex );
 
+    // CUDA Surface
+    channelDesc = cudaCreateChannelDesc( 32, 0, 0, 0, cudaChannelFormatKindFloat );
+    w = h = 100;
+    gpuErrchk( cudaMallocArray( &cuArray, &channelDesc, w, h,
+                                  cudaArraySurfaceLoadStore ) );
+    //gpuErrchk( cudaGraphicsMapResources( 1, &cudaImageResource, 0 ) );
+    //gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &d_image_array, cudaImageResource, 0, 0 ) );
+    memset( &surfRes, 0, sizeof(cudaResourceDesc) );
+    surfRes.resType = cudaResourceTypeArray;
+    surfRes.res.array.array = cuArray;
+    gpuErrchk( cudaCreateSurfaceObject( &surf, &surfRes ) );
+    //gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaImageResource, 0 ) );
+
     // Set up camera
 
     const char* vertex_shader   = loadFileContentsAsStr( "vert.shader" );
@@ -448,6 +458,8 @@ int main( int argc, char *argv[] )
     }
 
     //gpuErrchk( cudaFree( d_points ) );
+    gpuErrchk( cudaDestroySurfaceObject( surf ) );
+    gpuErrchk( cudaFreeArray( cuArray ) );
 
     // close GL context and any other GLFW resources
     glfwTerminate();
