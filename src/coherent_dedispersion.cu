@@ -383,16 +383,8 @@ int main( int argc, char *argv[] )
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 
-    /*
-    float image[] = { 0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f,
-                      0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
-                      0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f,
-                      0.3f, 0.4f, 0.5f, 0.6f, 0.0f, 0.8f, // <--- deliberate black pixel
-                      0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f,
-                      0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f };
-     */
-
-    w = h = 8;
+    w = 20;
+    h = 20;
     glTexImage2D( GL_TEXTURE_2D, 0, GL_R32F, w, h, 0, GL_RED, GL_FLOAT, NULL );
 
     glBindTexture( GL_TEXTURE_2D, 0 );
@@ -414,8 +406,6 @@ int main( int argc, char *argv[] )
     surfRes.resType = cudaResourceTypeArray;
     surfRes.res.array.array = cuArray;
     gpuErrchk( cudaCreateSurfaceObject( &surf, &surfRes ) );
-    printf( "surfRes: (w, h) = %ld, %ld\n", surfRes.res.pitch2D.width, surfRes.res.pitch2D.height );
-    //dim3 threads(w, h);
     dim3 threads(w, h);
     cudaCreateImage<<<1,threads>>>( surf, w, h );
     gpuErrchk( cudaPeekAtLastError() );
