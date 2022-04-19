@@ -33,7 +33,7 @@ static struct cudaGraphicsResource *cudaPointsResource;
 float *d_points;
 
 static struct cudaGraphicsResource *cudaImageResource;
-texture<float, 2, cudaReadModeElementType> d_image;
+float *d_image;
 cudaSurfaceObject_t surf;
 cudaResourceDesc surfRes;
 cudaArray *cuArray;
@@ -213,18 +213,29 @@ void mouse_button_callback( GLFWwindow *window, int button, int action, int mods
 }
 
 __global__
-void cudaCreateImage( cudaSurfaceObject_t surf, int width, int height )
+void cudaCreateImage( float *image, int width, int height )
 {
     // Makes an image of pixels ranging from 0.0 to 1.0, arranged in a gradient
     // so that top left is 0.0, bottom right is 1.0
-    int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.y * blockDim.y + threadIdx.y;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int x = i % width;
+    int y = i / width;
 
     // Get normalised Manhattan distance
     float dist = (x + y)/(float)(width + height - 2);
 
     // Set the pixel value, with the peak being at the centre
-    surf2Dwrite( dist, surf, x*sizeof(float), y );
+    image[i] = dist;
+}
+
+__global__
+void cudaCopyToSurface( cudaSurfaceObject_t dest, float *src, int width )
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    int x = i % width;
+    int y = i / width;
+
+    surf2Dwrite( src[i], dest, x*sizeof(float), y );
 }
 
 __global__
@@ -383,8 +394,8 @@ int main( int argc, char *argv[] )
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 
-    w = 20;
-    h = 20;
+    w = 200;
+    h = 200;
     glTexImage2D( GL_TEXTURE_2D, 0, GL_R32F, w, h, 0, GL_RED, GL_FLOAT, NULL );
 
     glBindTexture( GL_TEXTURE_2D, 0 );
@@ -406,8 +417,15 @@ int main( int argc, char *argv[] )
     surfRes.resType = cudaResourceTypeArray;
     surfRes.res.array.array = cuArray;
     gpuErrchk( cudaCreateSurfaceObject( &surf, &surfRes ) );
-    dim3 threads(w, h);
-    cudaCreateImage<<<1,threads>>>( surf, w, h );
+
+    // Create image
+    gpuErrchk( cudaMalloc( (void **)&d_image, w*h*sizeof(float) ) );
+    cudaCreateImage<<<w,h>>>( d_image, w, h );
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+
+    // Copy it to the surface (which is mapped to the OpenGL texture)
+    cudaCopyToSurface<<<w,h>>>( surf, d_image, w );
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 
@@ -461,6 +479,7 @@ int main( int argc, char *argv[] )
     //gpuErrchk( cudaFree( d_points ) );
     gpuErrchk( cudaDestroySurfaceObject( surf ) );
     gpuErrchk( cudaFreeArray( cuArray ) );
+    gpuErrchk( cudaFree( d_image ) );
 
     // close GL context and any other GLFW resources
     glfwTerminate();
