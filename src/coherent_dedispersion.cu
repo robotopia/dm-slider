@@ -20,7 +20,10 @@
 // Mouse states
 static double xprev;
 static double yprev;
-static bool drag_mode;
+static int drag_mode;
+#define DRAG_NONE  0
+#define DRAG_LEFT  1
+#define DRAG_RIGHT 2
 
 // Window states
 static float windowWidth;
@@ -200,13 +203,30 @@ void mouse_button_callback( GLFWwindow *window, int button, int action, int mods
         {
             case GLFW_PRESS:
                 glfwGetCursorPos( window, &xprev, &yprev );
-                drag_mode = true;
+                drag_mode = DRAG_LEFT;
                 gpuErrchk( cudaGraphicsMapResources( 1, &cudaPointsResource, 0 ) );
                 gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&d_points, &size, cudaPointsResource ) );
                 break;
             case GLFW_RELEASE:
-                drag_mode = false;
+                drag_mode = DRAG_NONE;
                 gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaPointsResource, 0 ) );
+                break;
+        }
+    }
+    if (button == GLFW_MOUSE_BUTTON_RIGHT)
+    {
+        size_t size;
+        switch (action)
+        {
+            case GLFW_PRESS:
+                glfwGetCursorPos( window, &xprev, &yprev );
+                drag_mode = DRAG_RIGHT;
+                gpuErrchk( cudaGraphicsMapResources( 1, &cudaImageResource, 0 ) );
+                gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &cuArray, cudaImageResource, 0, 0 ) );
+                break;
+            case GLFW_RELEASE:
+                drag_mode = DRAG_NONE;
+                gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaImageResource, 0 ) );
                 break;
         }
     }
@@ -262,15 +282,27 @@ void cudaChangeBrightness( float *image, float amount )
 
 void cursor_position_callback( GLFWwindow* window, double xpos, double ypos )
 {
-    if (drag_mode)
+    if (drag_mode == DRAG_LEFT)
     {
         float rad = atan2(YNORM(ypos),  XNORM(xpos)) -
                     atan2(YNORM(yprev), XNORM(xprev));
-        //float dy = YNORM(ypos) - YNORM(yprev);
 
-        // OpenGL CUDA interoperability
         cudaRotatePoints<<<1,4>>>( d_points, rad );
-        //cudaChangeBrightness<<<1,36>>>( d_image, dy );
+
+        xprev = xpos;
+        yprev = ypos;
+    }
+    else if (drag_mode == DRAG_RIGHT)
+    {
+        float dy = YNORM(ypos) - YNORM(yprev);
+
+        cudaChangeBrightness<<<w,h>>>( d_image, dy );
+        gpuErrchk( cudaPeekAtLastError() );
+        gpuErrchk( cudaDeviceSynchronize() );
+
+        cudaCopyToSurface<<<w,h>>>( surf, d_image, w );
+        gpuErrchk( cudaPeekAtLastError() );
+        gpuErrchk( cudaDeviceSynchronize() );
 
         xprev = xpos;
         yprev = ypos;
