@@ -33,7 +33,6 @@ static struct cudaGraphicsResource *cudaPointsResource;
 float *d_points;
 
 static struct cudaGraphicsResource *cudaImageResource;
-cudaArray *d_image_array;
 texture<float, 2, cudaReadModeElementType> d_image;
 cudaSurfaceObject_t surf;
 cudaResourceDesc surfRes;
@@ -197,7 +196,6 @@ void mouse_button_callback( GLFWwindow *window, int button, int action, int mods
     if (button == GLFW_MOUSE_BUTTON_LEFT)
     {
         size_t size;
-        //struct cudaChannelFormatDesc desc;
         switch (action)
         {
             case GLFW_PRESS:
@@ -205,7 +203,6 @@ void mouse_button_callback( GLFWwindow *window, int button, int action, int mods
                 drag_mode = true;
                 gpuErrchk( cudaGraphicsMapResources( 1, &cudaPointsResource, 0 ) );
                 gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&d_points, &size, cudaPointsResource ) );
-                //gpuErrchk( cudaGetChannelDesc( &desc, d_image_array ) );
                 break;
             case GLFW_RELEASE:
                 drag_mode = false;
@@ -221,13 +218,14 @@ void cudaCreateImage( cudaSurfaceObject_t surf, int width, int height )
     // Makes an image of pixels ranging from 0.0 to 1.0, arranged in a gradient
     // so that top left is 0.0, bottom right is 1.0
     int x = blockIdx.x * blockDim.x + threadIdx.x;
-    int y = blockIdx.x * blockDim.y + threadIdx.y;
+    int y = blockIdx.y * blockDim.y + threadIdx.y;
 
     // Get normalised Manhattan distance
-    float dist = (x + y)/(float)(width + height);
+    float dist = 1.0f - (x + y)/(float)(width + height - 2);
 
     // Set the pixel value, with the peak being at the centre
-    surf2Dwrite( dist, surf, x, y );
+    printf( "dist(%d,%d) = %f\n", x, y, dist );
+    surf2Dwrite( dist, surf, x*sizeof(float), y );
 }
 
 __global__
@@ -386,31 +384,44 @@ int main( int argc, char *argv[] )
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 
+    /*
     float image[] = { 0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f,
                       0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f,
                       0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f,
                       0.3f, 0.4f, 0.5f, 0.6f, 0.0f, 0.8f, // <--- deliberate black pixel
                       0.4f, 0.5f, 0.6f, 0.7f, 0.8f, 0.9f,
                       0.5f, 0.6f, 0.7f, 0.8f, 0.9f, 1.0f };
+     */
 
-    glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, 6, 6, 0, GL_RED, GL_FLOAT, image );
+    w = h = 8;
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, w, h, 0, GL_RED, GL_FLOAT, NULL );
 
-    cudaGraphicsGLRegisterImage( &cudaImageResource, tex, GL_TEXTURE_2D, cudaGraphicsMapFlagsNone );
+    glBindTexture( GL_TEXTURE_2D, 0 );
 
-    glBindTexture( GL_TEXTURE_2D, tex );
+    gpuErrchk(
+            cudaGraphicsGLRegisterImage(
+                &cudaImageResource,
+                tex,
+                GL_TEXTURE_2D,
+                cudaGraphicsRegisterFlagsSurfaceLoadStore
+                )
+            );
+
+    gpuErrchk( cudaGraphicsMapResources( 1, &cudaImageResource, 0 ) );
+    gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &cuArray, cudaImageResource, 0, 0 ) );
 
     // CUDA Surface
-    channelDesc = cudaCreateChannelDesc( 32, 0, 0, 0, cudaChannelFormatKindFloat );
-    w = h = 100;
-    gpuErrchk( cudaMallocArray( &cuArray, &channelDesc, w, h,
-                                  cudaArraySurfaceLoadStore ) );
-    //gpuErrchk( cudaGraphicsMapResources( 1, &cudaImageResource, 0 ) );
-    //gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &d_image_array, cudaImageResource, 0, 0 ) );
     memset( &surfRes, 0, sizeof(cudaResourceDesc) );
     surfRes.resType = cudaResourceTypeArray;
     surfRes.res.array.array = cuArray;
     gpuErrchk( cudaCreateSurfaceObject( &surf, &surfRes ) );
-    //gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaImageResource, 0 ) );
+    //dim3 threads(w, h);
+    dim3 threads(2, 2);
+    cudaCreateImage<<<1,threads>>>( surf, w, h );
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+
+    gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaImageResource, 0 ) );
 
     // Set up camera
 
@@ -446,7 +457,7 @@ int main( int argc, char *argv[] )
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         //glActiveTexture( GL_TEXTURE0 );
-        //glBindTexture( GL_TEXTURE_2D, tex );
+        glBindTexture( GL_TEXTURE_2D, tex );
 
         // draw points 0-3 from the currently bound VAO with current in-use shader
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
