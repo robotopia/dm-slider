@@ -1,6 +1,6 @@
 #include <cuda_runtime.h>
 #include <cuComplex.h>
-#include "../src/cudaErrorChecking.h"
+#include "cudaErrorChecking.h"
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -213,9 +213,8 @@ void mouse_button_callback( GLFWwindow *window, int button, int action, int mods
                 break;
         }
     }
-    if (button == GLFW_MOUSE_BUTTON_RIGHT)
+    else if (button == GLFW_MOUSE_BUTTON_RIGHT)
     {
-        size_t size;
         switch (action)
         {
             case GLFW_PRESS:
@@ -463,7 +462,7 @@ int main( int argc, char *argv[] )
 
     gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaImageResource, 0 ) );
 
-    // Set up camera
+    // Set up shaders
 
     const char* vertex_shader   = loadFileContentsAsStr( "vert.shader" );
     const char* fragment_shader = loadFileContentsAsStr( "frag.shader" );
