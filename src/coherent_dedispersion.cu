@@ -221,10 +221,9 @@ void cudaCreateImage( cudaSurfaceObject_t surf, int width, int height )
     int y = blockIdx.y * blockDim.y + threadIdx.y;
 
     // Get normalised Manhattan distance
-    float dist = 1.0f - (x + y)/(float)(width + height - 2);
+    float dist = (x + y)/(float)(width + height - 2);
 
     // Set the pixel value, with the peak being at the centre
-    printf( "dist(%d,%d) = %f\n", x, y, dist );
     surf2Dwrite( dist, surf, x*sizeof(float), y );
 }
 
@@ -394,7 +393,7 @@ int main( int argc, char *argv[] )
      */
 
     w = h = 8;
-    glTexImage2D( GL_TEXTURE_2D, 0, GL_RED, w, h, 0, GL_RED, GL_FLOAT, NULL );
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_R32F, w, h, 0, GL_RED, GL_FLOAT, NULL );
 
     glBindTexture( GL_TEXTURE_2D, 0 );
 
@@ -415,8 +414,9 @@ int main( int argc, char *argv[] )
     surfRes.resType = cudaResourceTypeArray;
     surfRes.res.array.array = cuArray;
     gpuErrchk( cudaCreateSurfaceObject( &surf, &surfRes ) );
+    printf( "surfRes: (w, h) = %ld, %ld\n", surfRes.res.pitch2D.width, surfRes.res.pitch2D.height );
     //dim3 threads(w, h);
-    dim3 threads(2, 2);
+    dim3 threads(w, h);
     cudaCreateImage<<<1,threads>>>( surf, w, h );
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
