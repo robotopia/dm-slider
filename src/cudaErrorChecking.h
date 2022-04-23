@@ -3,12 +3,11 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <cuda_runtime.h>
 
-using namespace std;
-
 // Boilerplate code for checking CUDA functions
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+inline void gpuAssert( cudaError_t code, const char *file, int line )
 {
     /* Wrapper function for GPU/CUDA error handling. Every CUDA call goes through
        this function. It will return a message giving your the error string,
@@ -17,12 +16,9 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
     if (code != 0)
     {
         fprintf(stderr, "GPUAssert:: %s - %s (%d)\n", cudaGetErrorString(code), file, line);
-        if (abort)
-        {
-            exit(code);
-        }
+        exit(code);
     }
 }
-#define gpuErrchk(ans) {gpuAssert((ans), __FILE__, __LINE__, true);}
+#define gpuErrchk(ans) {gpuAssert((ans), __FILE__, __LINE__);}
 
 #endif
