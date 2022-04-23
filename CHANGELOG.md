@@ -1,5 +1,10 @@
 # Change log
 
+## v0.3
+
+Switched from GLFW to GTK (Issue #6).
+Reorganised code and filenames (changed from `coherent_dedispersion.cu` to `dm-slider.c` and `cohdd.cu`).
+
 ## v0.2
 
 `coherent_dedispersion.cu` now implements OpenGL-CUDA interoperability using "surfaces" to access and manipulate image data with custom kernels.
