@@ -11,17 +11,11 @@
 #include <cuComplex.h>
 #include "cudaErrorChecking.h"
 
-/*
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-*/
-
 #include <cuda_gl_interop.h>
 
 #include "dm-slider.h"
 
-//#include <gtk/gtk.h>
+#include <gtk/gtk.h>
 
 // GLUT-related constants
 #define OPEN_FILE  1
@@ -220,16 +214,49 @@ char *loadFileContentsAsStr( const char *filename )
     return str;
 }
 
-int main()
+int main( int argc, char *argv[] )
 {
+    GtkBuilder *builder;
+    GObject    *window;
+    GObject    *button;
+    GObject    *glarea;
+    GError     *error = NULL;
+
+    gtk_init( &argc, &argv );
+
+    /* Construct a GtkBuilder instance and load our UI description */
+    builder = gtk_builder_new();
+    if (gtk_builder_add_from_file( builder, "gtk/builder.ui", &error ) == 0)
+    {
+        g_printerr( "Error loading file: %s\n", error->message );
+        g_clear_error( &error );
+        return EXIT_FAILURE;
+    }
+
+    /* Connect signal handlers to the constructed widgets. */
+    window = gtk_builder_get_object( builder, "window" );
+    g_signal_connect( window, "destroy", G_CALLBACK( gtk_main_quit ), NULL );
+
+    glarea = gtk_builder_get_object( builder, "glarea1" );
+    //g_signal_connect( glarea, "clicked", G_CALLBACK( print_hello ), NULL );
+
+    button = gtk_builder_get_object( builder, "button2" );
+    //g_signal_connect( button, "clicked", G_CALLBACK( print_hello ), NULL );
+
+    button = gtk_builder_get_object( builder, "quit" );
+    g_signal_connect( button, "clicked", G_CALLBACK( gtk_main_quit ), NULL );
+
+    gtk_main();
+
+    /*
     // Start GL context and O/S window using the GLFW helper library
     glfwInit();
     const char *glfwerr;
     int code = glfwGetError( &glfwerr );
     if (code != GLFW_NO_ERROR)
     {
-        fprintf( stderr, "ERROR: could not start GLFW3: %s\n", glfwerr );
-        return EXIT_FAILURE;
+    fprintf( stderr, "ERROR: could not start GLFW3: %s\n", glfwerr );
+    return EXIT_FAILURE;
     }
 
     windowWidth = 640;
@@ -237,9 +264,9 @@ int main()
     GLFWwindow* window = glfwCreateWindow( windowWidth, windowHeight, "DM Slider", NULL, NULL );
     if (!window)
     {
-        fprintf(stderr, "ERROR: could not open window with GLFW3\n");
-        glfwTerminate();
-        return EXIT_FAILURE;
+    fprintf(stderr, "ERROR: could not open window with GLFW3\n");
+    glfwTerminate();
+    return EXIT_FAILURE;
     }
     glfwMakeContextCurrent( window );
 
@@ -264,11 +291,11 @@ int main()
 
     // Define some points (to make a square)
     float points[] = {
-        // vertices   // texcoords
-         0.5f,  0.5f, 1.0f, 1.0f,
-         0.5f, -0.5f, 1.0f, 0.0f,
-        -0.5f,  0.5f, 0.0f, 1.0f,
-        -0.5f, -0.5f, 0.0f, 0.0f
+    // vertices   // texcoords
+    0.5f,  0.5f, 1.0f, 1.0f,
+    0.5f, -0.5f, 1.0f, 0.0f,
+    -0.5f,  0.5f, 0.0f, 1.0f,
+    -0.5f, -0.5f, 0.0f, 0.0f
     };
 
     // Define a place for the points to live in global memory
@@ -349,17 +376,6 @@ int main()
     glLinkProgram(shader_programme);
     glUseProgram(shader_programme);
 
-    // Set up camera
-    /*
-    glm::mat4 Model( 1.0f ), View( 1.0f );
-
-    GLint model = glGetUniformLocation( shader_programme, "Model" );
-    glUniformMatrix4fv( model, 1, GL_FALSE, glm::value_ptr(Model) );
- 
-    GLint view = glGetUniformLocation( shader_programme, "View" );
-    glUniformMatrix4fv( view, 1, GL_FALSE, glm::value_ptr(View) );
-    */
- 
     while(!glfwWindowShouldClose(window))
     {
         // wipe the drawing surface clear
@@ -385,5 +401,6 @@ int main()
     // close GL context and any other GLFW resources
     glfwTerminate();
 
-    return EXIT_SUCCESS;
+    */
+        return EXIT_SUCCESS;
 }
