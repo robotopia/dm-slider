@@ -1,6 +1,6 @@
 CC = g++
 NVCC = nvcc
-NVCCLIBS = -lglfw -lGL -lGLU -lglut -lGLEW `pkg-config --libs gtk+-3.0`
+NVCCLIBS = -lGL -lGLU -lglut -lGLEW `pkg-config --libs gtk+-3.0`
 LDLIBS = $(NVCCLIBS) -lcuda -lcudart
 LDFLAGS = `pkg-config --libs-only-L cuda cudart`
 NVCCFLAGS = -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored

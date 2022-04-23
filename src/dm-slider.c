@@ -35,35 +35,25 @@ static float windowHeight;
 #define XNORM(xpos)  ( (xpos)/windowWidth - 0.5)
 #define YNORM(ypos)  (-(ypos)/windowHeight + 0.5)
 
-static struct cudaGraphicsResource *cudaPointsResource;
-float *d_points;
-
-static struct cudaGraphicsResource *cudaImageResource;
-float *d_image;
-cudaSurfaceObject_t surf;
-struct cudaResourceDesc surfRes;
-struct cudaArray *cuArray;
-struct cudaChannelFormatDesc channelDesc;
-
-int w, h;
-
-/*
-int glut_main( int argc, char **argv )
+struct opengl_data_t
 {
-    // Use a single buffered window in RGB mode (as opposed to a double-buffered
-    // window or color-index mode).
-    glutInit( &argc, argv );
-    glutInitDisplayMode( GLUT_SINGLE | GLUT_RGB );
+    struct cudaGraphicsResource *cudaPointsResource;
+    float *d_points;
+    struct cudaGraphicsResource *cudaImageResource;
+    float *d_image;
+    cudaSurfaceObject_t surf;
+    struct cudaResourceDesc surfRes;
+    struct cudaArray *cuArray;
+    struct cudaChannelFormatDesc channelDesc;
+    int w, h;
+    GLuint tex;
+};
 
-    // Position window at (80,80)-(480,380) and give it a title.
-    glutInitWindowPosition( 80, 80 );
-    glutInitWindowSize( 400, 300 );
-    glutCreateWindow( "A Simple Triangle" );
+struct opengl_data_t opengl_data;
 
-    // Tell GLUT that whenever the main window needs to be repainted that it
-    // should call the function display().
-    glutDisplayFunc( display );
-
+// CONTAINS CODE I STILL WANT TO RECYCLE:
+/*
+{
     // Prepare some test data
     size_t nFrames            = 4;
     size_t frameSizeBytes     = 544;
@@ -100,12 +90,6 @@ int glut_main( int argc, char **argv )
     cudaStokesI<<<nDualPolSamples/1024, 1024>>>( d_vdifData, d_StokesI );
     gpuErrchk( cudaDeviceSynchronize() );
 
-    // Tell GLUT to start reading and processing events.  This function
-    // never returns; the program only exits when the user closes the main
-    // window or kills the process.
-    glutMainLoop();
-
-    // The following is never reached!!
     // Clean up memory
     gpuErrchk( cudaFree( d_vdif ) );
     gpuErrchk( cudaFree( d_vdifData ) );
@@ -114,65 +98,94 @@ int glut_main( int argc, char **argv )
 }
 */
 
-void mouse_button_callback( GLFWwindow *window, int button, int action, int mods )
+void draw()
 {
-    mods++; // Just to avoid compiler warning about unused parameters (delete me later)
+    // Clear the surface
+    glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-    if (button == GLFW_MOUSE_BUTTON_LEFT)
+    //glActiveTexture( GL_TEXTURE0 );
+    glBindTexture( GL_TEXTURE_2D, opengl_data.tex );
+
+    // draw points 0-3 from the currently bound VAO with current in-use shader
+    glDrawArrays( GL_TRIANGLE_STRIP, 0, 4 );
+}
+
+void mouse_release_callback( GtkWidget *widget, GdkEventButton *event, gpointer data )
+{
+    if (!data) { } // Just to avoid compiler warning about unused parameters (delete me later)
+    if (!widget)
+        return;
+
+    switch (event->button)
     {
-        size_t size;
-        switch (action)
-        {
-            case GLFW_PRESS:
-                glfwGetCursorPos( window, &xprev, &yprev );
-                drag_mode = DRAG_LEFT;
-                gpuErrchk( cudaGraphicsMapResources( 1, &cudaPointsResource, 0 ) );
-                gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&d_points, &size, cudaPointsResource ) );
-                break;
-            case GLFW_RELEASE:
-                drag_mode = DRAG_NONE;
-                gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaPointsResource, 0 ) );
-                break;
-        }
-    }
-    else if (button == GLFW_MOUSE_BUTTON_RIGHT)
-    {
-        switch (action)
-        {
-            case GLFW_PRESS:
-                glfwGetCursorPos( window, &xprev, &yprev );
-                drag_mode = DRAG_RIGHT;
-                gpuErrchk( cudaGraphicsMapResources( 1, &cudaImageResource, 0 ) );
-                gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &cuArray, cudaImageResource, 0, 0 ) );
-                break;
-            case GLFW_RELEASE:
-                drag_mode = DRAG_NONE;
-                gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaImageResource, 0 ) );
-                break;
-        }
+        case 1: // Left mouse button
+            drag_mode = DRAG_NONE;
+            gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaPointsResource), 0 ) );
+            break;
+        case 3: // Right mouse button
+            drag_mode = DRAG_NONE;
+            gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
+            break;
+        default:
+            break;
     }
 }
 
-void cursor_position_callback( GLFWwindow* window, double xpos, double ypos )
+void mouse_button_callback( GtkWidget *widget, GdkEventButton *event, gpointer data )
 {
-    if (!window)
+    if (!data) { } // Just to avoid compiler warning about unused parameters (delete me later)
+    if (!widget)
+        return;
+
+    size_t size;
+    switch (event->button)
+    {
+        case 1: // Left mouse button
+            xprev = event->x;
+            yprev = event->y;
+            drag_mode = DRAG_LEFT;
+            gpuErrchk( cudaGraphicsMapResources( 1, &(opengl_data.cudaPointsResource), 0 ) );
+            gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&(opengl_data.d_points), &size, opengl_data.cudaPointsResource ) );
+            break;
+        case 3: // Right mouse button
+            xprev = event->x;
+            yprev = event->y;
+            drag_mode = DRAG_RIGHT;
+            gpuErrchk( cudaGraphicsMapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
+            gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &(opengl_data.cuArray), opengl_data.cudaImageResource, 0, 0 ) );
+            break;
+        default:
+            break;
+    }
+}
+
+void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointer data )
+{
+    if (!data) { }
+    if (!widget)
         return;
 
     if (drag_mode == DRAG_LEFT)
     {
+        double xpos = event->x;
+        double ypos = event->y;
+
         float rad = atan2(YNORM(ypos),  XNORM(xpos)) -
                     atan2(YNORM(yprev), XNORM(xprev));
 
-        cudaRotatePoints( d_points, rad );
+        cudaRotatePoints( opengl_data.d_points, rad );
 
         xprev = xpos;
         yprev = ypos;
     }
     else if (drag_mode == DRAG_RIGHT)
     {
+        double xpos = event->x;
+        double ypos = event->y;
+
         float dy = YNORM(ypos) - YNORM(yprev);
 
-        cudaChangeBrightness( surf, d_image, dy, w, h );
+        cudaChangeBrightness( opengl_data.surf, opengl_data.d_image, dy, opengl_data.w, opengl_data.h );
 
         xprev = xpos;
         yprev = ypos;
@@ -214,14 +227,6 @@ char *loadFileContentsAsStr( const char *filename )
     return str;
 }
 
-static void print_dims( GtkWidget *widget, gpointer data )
-{
-    if (data) { }
-    if (!widget)
-        return;
-    printf( "clicked\n" );
-}
-
 static gboolean print_button_event( GtkWidget *widget, GdkEventButton *event, gpointer data )
 {
     if (data) { }
@@ -236,70 +241,25 @@ static gboolean print_button_event( GtkWidget *widget, GdkEventButton *event, gp
     return true;
 }
 
-int main( int argc, char *argv[] )
+static gboolean render( GtkGLArea *glarea, GdkGLContext *context, gpointer data )
 {
-    GtkWidget *window;
-    GtkWidget *vbox;
-    GtkWidget *button;
-    GtkWidget *glarea;
+    if (!data) { }
+    if (!glarea || !context)
+        return false;
 
-    gtk_init(&argc, &argv);
+    draw();
 
-    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(window), "Tooltip");
-    gtk_window_set_default_size(GTK_WINDOW(window), 600, 400);
-    gtk_container_set_border_width(GTK_CONTAINER(window), 15);
-    g_signal_connect( G_OBJECT(window), "destroy",
-            G_CALLBACK(gtk_main_quit), NULL );
+    gtk_widget_queue_draw( GTK_WIDGET(glarea) );
 
-    vbox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
-    glarea = gtk_gl_area_new();
-    button = gtk_button_new_with_label( "Button" );
-    //gtk_widget_set_tooltip_text(button, "Button widget");
+    return true;
+}
 
-    gtk_container_add( GTK_CONTAINER(window), vbox );
-    gtk_container_add( GTK_CONTAINER(vbox), glarea );
-    gtk_container_add( GTK_CONTAINER(vbox), button );
-    gtk_box_set_child_packing( GTK_BOX(vbox), glarea, true, true, 0, GTK_PACK_START );
+static void on_glarea_realize( GtkGLArea *glarea )
+{
+    gtk_gl_area_make_current( GTK_GL_AREA(glarea) );
+    if (gtk_gl_area_get_error( glarea ) != NULL)
+        return;
 
-    gtk_widget_set_events( glarea, GDK_BUTTON_PRESS_MASK | GDK_BUTTON_MOTION_MASK );
-    g_signal_connect( G_OBJECT(glarea), "button-press-event",
-            G_CALLBACK(print_button_event), NULL );
-    g_signal_connect( G_OBJECT(button), "button-press-event",
-            G_CALLBACK(print_button_event), NULL );
-
-    gtk_widget_show_all( window );
-
-    gtk_main();
-
-    /*
-    // Start GL context and O/S window using the GLFW helper library
-    glfwInit();
-    const char *glfwerr;
-    int code = glfwGetError( &glfwerr );
-    if (code != GLFW_NO_ERROR)
-    {
-    fprintf( stderr, "ERROR: could not start GLFW3: %s\n", glfwerr );
-    return EXIT_FAILURE;
-    }
-
-    windowWidth = 640;
-    windowHeight = 480;
-    GLFWwindow* window = glfwCreateWindow( windowWidth, windowHeight, "DM Slider", NULL, NULL );
-    if (!window)
-    {
-    fprintf(stderr, "ERROR: could not open window with GLFW3\n");
-    glfwTerminate();
-    return EXIT_FAILURE;
-    }
-    glfwMakeContextCurrent( window );
-
-    // Set up mouse
-    glfwSetMouseButtonCallback( window, mouse_button_callback );
-    glfwSetCursorPosCallback( window, cursor_position_callback );
-    drag_mode = false;
-
-    // Start GLEW extension handler
     glewExperimental = GL_TRUE;
     glewInit();
 
@@ -315,15 +275,15 @@ int main( int argc, char *argv[] )
 
     // Define some points (to make a square)
     float points[] = {
-    // vertices   // texcoords
-    0.5f,  0.5f, 1.0f, 1.0f,
-    0.5f, -0.5f, 1.0f, 0.0f,
-    -0.5f,  0.5f, 0.0f, 1.0f,
-    -0.5f, -0.5f, 0.0f, 0.0f
+        // vertices   // texcoords
+        0.5f,  0.5f, 1.0f, 1.0f,
+        0.5f, -0.5f, 1.0f, 0.0f,
+        -0.5f,  0.5f, 0.0f, 1.0f,
+        -0.5f, -0.5f, 0.0f, 0.0f
     };
 
     // Define a place for the points to live in global memory
-    //gpuErrchk( cudaMalloc( (void **)&d_points, sizeof(points) ) );
+    //gpuErrchk( cudaMalloc( (void **)&(opengl_data.d_points), sizeof(points) ) );
 
     GLuint vbo = 0;
     glGenBuffers( 1, &vbo );
@@ -331,7 +291,7 @@ int main( int argc, char *argv[] )
     glBufferData( GL_ARRAY_BUFFER, 16 * sizeof(float), points, GL_STATIC_DRAW );
 
     // Prepare a resource for CUDA interoperability
-    cudaGraphicsGLRegisterBuffer( &cudaPointsResource, vbo, cudaGraphicsMapFlagsNone );
+    cudaGraphicsGLRegisterBuffer( &(opengl_data.cudaPointsResource), vbo, cudaGraphicsMapFlagsNone );
 
     GLuint vao = 0;
     glGenVertexArrays( 1, &vao );
@@ -344,43 +304,42 @@ int main( int argc, char *argv[] )
     glEnableVertexAttribArray( 1 );
 
     // Texture
-    GLuint tex;
-    glGenTextures( 1, &tex );
-    glBindTexture( GL_TEXTURE_2D, tex );
+    glGenTextures( 1, &(opengl_data.tex) );
+    glBindTexture( GL_TEXTURE_2D, opengl_data.tex );
 
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 
-    w = 200;
-    h = 200;
-    glTexImage2D( GL_TEXTURE_2D, 0, GL_R32F, w, h, 0, GL_RED, GL_FLOAT, NULL );
+    opengl_data.w = 200;
+    opengl_data.h = 200;
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_R32F, opengl_data.w, opengl_data.h, 0, GL_RED, GL_FLOAT, NULL );
 
     glBindTexture( GL_TEXTURE_2D, 0 );
 
     gpuErrchk(
             cudaGraphicsGLRegisterImage(
-                &cudaImageResource,
-                tex,
+                &(opengl_data.cudaImageResource),
+                opengl_data.tex,
                 GL_TEXTURE_2D,
                 cudaGraphicsRegisterFlagsSurfaceLoadStore
                 )
             );
 
-    gpuErrchk( cudaGraphicsMapResources( 1, &cudaImageResource, 0 ) );
-    gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &cuArray, cudaImageResource, 0, 0 ) );
+    gpuErrchk( cudaGraphicsMapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
+    gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &(opengl_data.cuArray), opengl_data.cudaImageResource, 0, 0 ) );
 
     // CUDA Surface
-    memset( &surfRes, 0, sizeof(struct cudaResourceDesc) );
-    surfRes.resType = cudaResourceTypeArray;
-    surfRes.res.array.array = cuArray;
-    gpuErrchk( cudaCreateSurfaceObject( &surf, &surfRes ) );
+    memset( &(opengl_data.surfRes), 0, sizeof(struct cudaResourceDesc) );
+    opengl_data.surfRes.resType = cudaResourceTypeArray;
+    opengl_data.surfRes.res.array.array = opengl_data.cuArray;
+    gpuErrchk( cudaCreateSurfaceObject( &(opengl_data.surf), &(opengl_data.surfRes) ) );
 
     // Create image
-    d_image = cudaCreateImage( surf, w, h );
+    opengl_data.d_image = cudaCreateImage( opengl_data.surf, opengl_data.w, opengl_data.h );
 
-    gpuErrchk( cudaGraphicsUnmapResources( 1, &cudaImageResource, 0 ) );
+    gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
 
     // Set up shaders
 
@@ -399,32 +358,66 @@ int main( int argc, char *argv[] )
     glAttachShader(shader_programme, vs);
     glLinkProgram(shader_programme);
     glUseProgram(shader_programme);
+}
 
-    while(!glfwWindowShouldClose(window))
-    {
-        // wipe the drawing surface clear
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+int main( int argc, char *argv[] )
+{
+    GtkWidget *window;
+    GtkWidget *vbox;
+    GtkWidget *button;
+    GtkWidget *glarea;
 
-        //glActiveTexture( GL_TEXTURE0 );
-        glBindTexture( GL_TEXTURE_2D, tex );
+    windowWidth = 640;
+    windowHeight = 480;
 
-        // draw points 0-3 from the currently bound VAO with current in-use shader
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-        // update other events like input handling
-        glfwPollEvents();
+    gtk_init(&argc, &argv);
 
-        // put the stuff we've been drawing onto the display
-        glfwSwapBuffers(window);
-    }
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_title(GTK_WINDOW(window), "DM Slider");
+    gtk_window_set_default_size(GTK_WINDOW(window), windowWidth, windowHeight);
+    gtk_container_set_border_width(GTK_CONTAINER(window), 0);
+    g_signal_connect( G_OBJECT(window), "destroy",
+            G_CALLBACK(gtk_main_quit), NULL );
 
-    //gpuErrchk( cudaFree( d_points ) );
-    gpuErrchk( cudaDestroySurfaceObject( surf ) );
-    gpuErrchk( cudaFreeArray( cuArray ) );
-    gpuErrchk( cudaFree( d_image ) );
+    vbox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+    glarea = gtk_gl_area_new();
+    button = gtk_button_new_with_label( "Button" );
+    //gtk_widget_set_tooltip_text(button, "Button widget");
 
-    // close GL context and any other GLFW resources
-    glfwTerminate();
+    gtk_container_add( GTK_CONTAINER(window), vbox );
+    gtk_container_add( GTK_CONTAINER(vbox), glarea );
+    gtk_container_add( GTK_CONTAINER(vbox), button );
+    gtk_box_set_child_packing( GTK_BOX(vbox), glarea, true, true, 0, GTK_PACK_START );
 
-    */
-        return EXIT_SUCCESS;
+    gtk_widget_set_events( glarea,
+            GDK_BUTTON_PRESS_MASK |
+            GDK_BUTTON_RELEASE_MASK |
+            GDK_BUTTON_MOTION_MASK );
+    g_signal_connect( G_OBJECT(glarea), "button-press-event",
+            G_CALLBACK(mouse_button_callback), NULL );
+    g_signal_connect( G_OBJECT(glarea), "button-release-event",
+            G_CALLBACK(mouse_release_callback), NULL );
+    g_signal_connect( G_OBJECT(glarea), "motion-notify-event",
+            G_CALLBACK(cursor_position_callback), NULL );
+    g_signal_connect( G_OBJECT(glarea), "render",
+            G_CALLBACK(render), NULL );
+    g_signal_connect( G_OBJECT(glarea), "realize",
+            G_CALLBACK(on_glarea_realize), NULL );
+
+    g_signal_connect( G_OBJECT(button), "button-press-event",
+            G_CALLBACK(print_button_event), NULL );
+
+    drag_mode = false;
+
+    gtk_widget_show_all( window );
+
+    gtk_main();
+
+    // Is this ever reached?
+    //gpuErrchk( cudaFree( opengl_data.d_points ) );
+    gpuErrchk( cudaDestroySurfaceObject( opengl_data.surf ) );
+    gpuErrchk( cudaFreeArray( opengl_data.cuArray ) );
+    gpuErrchk( cudaFree( opengl_data.d_image ) );
+
+    return EXIT_SUCCESS;
 }
