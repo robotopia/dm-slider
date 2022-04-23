@@ -214,37 +214,61 @@ char *loadFileContentsAsStr( const char *filename )
     return str;
 }
 
+static void print_dims( GtkWidget *widget, gpointer data )
+{
+    if (data) { }
+    if (!widget)
+        return;
+    printf( "clicked\n" );
+}
+
+static gboolean print_button_event( GtkWidget *widget, GdkEventButton *event, gpointer data )
+{
+    if (data) { }
+    if (!widget)
+        return false;
+
+    printf( "clicked button #%d at (%lf,%lf)... or is it (%lf,%lf)?\n",
+            event->button,
+            event->x_root, event->y_root,
+            event->x, event->y );
+
+    return true;
+}
+
 int main( int argc, char *argv[] )
 {
-    GtkBuilder *builder;
-    GObject    *window;
-    GObject    *button;
-    GObject    *glarea;
-    GError     *error = NULL;
+    GtkWidget *window;
+    GtkWidget *vbox;
+    GtkWidget *button;
+    GtkWidget *glarea;
 
-    gtk_init( &argc, &argv );
+    gtk_init(&argc, &argv);
 
-    /* Construct a GtkBuilder instance and load our UI description */
-    builder = gtk_builder_new();
-    if (gtk_builder_add_from_file( builder, "gtk/builder.ui", &error ) == 0)
-    {
-        g_printerr( "Error loading file: %s\n", error->message );
-        g_clear_error( &error );
-        return EXIT_FAILURE;
-    }
+    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_title(GTK_WINDOW(window), "Tooltip");
+    gtk_window_set_default_size(GTK_WINDOW(window), 600, 400);
+    gtk_container_set_border_width(GTK_CONTAINER(window), 15);
+    g_signal_connect( G_OBJECT(window), "destroy",
+            G_CALLBACK(gtk_main_quit), NULL );
 
-    /* Connect signal handlers to the constructed widgets. */
-    window = gtk_builder_get_object( builder, "window" );
-    g_signal_connect( window, "destroy", G_CALLBACK( gtk_main_quit ), NULL );
+    vbox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+    glarea = gtk_gl_area_new();
+    button = gtk_button_new_with_label( "Button" );
+    //gtk_widget_set_tooltip_text(button, "Button widget");
 
-    glarea = gtk_builder_get_object( builder, "glarea1" );
-    //g_signal_connect( glarea, "clicked", G_CALLBACK( print_hello ), NULL );
+    gtk_container_add( GTK_CONTAINER(window), vbox );
+    gtk_container_add( GTK_CONTAINER(vbox), glarea );
+    gtk_container_add( GTK_CONTAINER(vbox), button );
+    gtk_box_set_child_packing( GTK_BOX(vbox), glarea, true, true, 0, GTK_PACK_START );
 
-    button = gtk_builder_get_object( builder, "button2" );
-    //g_signal_connect( button, "clicked", G_CALLBACK( print_hello ), NULL );
+    gtk_widget_set_events( glarea, GDK_BUTTON_PRESS_MASK | GDK_BUTTON_MOTION_MASK );
+    g_signal_connect( G_OBJECT(glarea), "button-press-event",
+            G_CALLBACK(print_button_event), NULL );
+    g_signal_connect( G_OBJECT(button), "button-press-event",
+            G_CALLBACK(print_button_event), NULL );
 
-    button = gtk_builder_get_object( builder, "quit" );
-    g_signal_connect( button, "clicked", G_CALLBACK( gtk_main_quit ), NULL );
+    gtk_widget_show_all( window );
 
     gtk_main();
 
