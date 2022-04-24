@@ -122,3 +122,37 @@ int ascii_header_get (char* header, const char* keyword,
   return ret;
 }
 
+// This function allocates memory
+char *load_file_contents_as_str( const char *filename )
+{
+    // Open the file for reading
+    FILE *f = fopen( filename, "r" );
+    if (f == NULL)
+    {
+        fprintf( stderr, "WARNING: load_file_contents_as_str: unable to open "
+                "file %s\n", filename );
+        return NULL;
+    }
+
+    // Get the size of the file
+    fseek( f, 0L, SEEK_END );
+    long size = ftell( f );
+    rewind( f );
+
+    // Allocate memory in a string buffer
+    char *str = (char *)malloc( size + 1 );
+
+    // Read in the file contents to the string buffer
+    long nread = fread( str, 1, size, f );
+    if (nread != size)
+    {
+        fprintf( stderr, "warning: load_file_contents_as_str: reading in "
+                "contents of %s truncated (%ld/%ld bytes read)\n",
+                filename, nread, size );
+    }
+
+    // Put a null termination at the end
+    str[size] = '\0';
+
+    return str;
+}

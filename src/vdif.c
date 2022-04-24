@@ -37,24 +37,9 @@ void load_vdif( struct vdif_file *vf, char *hdrfile )
     strcpy( vf->hdrfile, hdrfile );
 
     // Load the header file contents
-    FILE *fhdr = fopen( hdrfile, "r" );
-    if (!fhdr)
-    {
-        fprintf( stderr, "WARNING: '%s' unable to be opened.\n", hdrfile );
-        return;
-    }
-
-    fseek( fhdr, 0L, SEEK_END );
-    size_t nbytes = ftell( fhdr );
-    rewind( fhdr );
-
-    vf->hdr = (char *)malloc( nbytes );
-    fread( vf->hdr, nbytes, 1, fhdr );
+    vf->hdr = load_file_contents_as_str( hdrfile );
 
     // Parse frequency information
     ascii_header_get( vf->hdr, "FREQ", "%f", &vf->ctr_freq_MHz );
     ascii_header_get( vf->hdr, "BW",   "%f", &vf->bw_MHz       );
-
-    // Close file
-    fclose( fhdr );
 }

@@ -49,6 +49,8 @@ int ascii_header_set (char* header, const char* keyword,
 int ascii_header_get (char* header, const char* keyword,
 		      const char* code, ...);
 
+char *load_file_contents_as_str( const char *filename );
+
 #ifdef __cplusplus
 }
 #endif

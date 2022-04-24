@@ -13,6 +13,7 @@
 #include <cuda_gl_interop.h>
 
 #include "dm-slider.h"
+#include "ascii_header.h"
 
 #include <gtk/gtk.h>
 
@@ -191,41 +192,6 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
     }
 }
 
-// This function allocates memory
-char *loadFileContentsAsStr( const char *filename )
-{
-    // Open the file for reading
-    FILE *f = fopen( filename, "r" );
-    if (f == NULL)
-    {
-        fprintf( stderr, "error: loadFileContentsAsStr: unable to open file "
-                "%s\n", filename );
-        exit(EXIT_FAILURE);
-    }
-
-    // Get the size of the file
-    fseek( f, 0L, SEEK_END );
-    long size = ftell( f );
-    rewind( f );
-
-    // Allocate memory in a string buffer
-    char *str = (char *)malloc( size + 1 );
-
-    // Read in the file contents to the string buffer
-    long nread = fread( str, 1, size, f );
-    if (nread != size)
-    {
-        fprintf( stderr, "warning: loadFileContentsAsStr: reading in "
-                "contents of %s truncated (%ld/%ld bytes read)\n",
-                filename, nread, size );
-    }
-
-    // Put a null termination at the end
-    str[size] = '\0';
-
-    return str;
-}
-
 static gboolean print_button_event( GtkWidget *widget, GdkEventButton *event, gpointer data )
 {
     if (data) { }
@@ -342,8 +308,13 @@ static void on_glarea_realize( GtkGLArea *glarea )
 
     // Set up shaders
 
-    const char* vertex_shader   = loadFileContentsAsStr( "vert.shader" );
-    const char* fragment_shader = loadFileContentsAsStr( "frag.shader" );
+    const char* vertex_shader   = load_file_contents_as_str( "vert.shader" );
+    const char* fragment_shader = load_file_contents_as_str( "frag.shader" );
+    if (!vertex_shader || !fragment_shader)
+    {
+        fprintf( stderr, "ERROR: Couldn't load shaders from file\n" );
+        exit(EXIT_FAILURE);
+    }
 
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vs, 1, &vertex_shader, NULL);
