@@ -10,6 +10,9 @@ struct vdif_file
     char  *hdr;           // The contents of the header file
     float  ctr_freq_MHz;
     float  bw_MHz;
+    char  *datafile;      // The name of the data file
+    void  *data;          // The contents of the data file (CPU)
+    void  *d_data;        // The contents of the data file (GPU)
 };
 
 struct vdif_context

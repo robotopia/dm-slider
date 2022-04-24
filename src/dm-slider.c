@@ -243,7 +243,8 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         for (iter = vc.channels; iter != NULL; iter = iter->next)
         {
             vf = (struct vdif_file *)iter->data;
-            printf( "%s: %f MHz\n", vf->hdrfile, vf->ctr_freq_MHz );
+            printf( "%s:\n\t%f MHz\n", vf->hdrfile, vf->ctr_freq_MHz );
+            //printf( "%s:\n\t%f MHz\n\t%p\n", vf->hdrfile, vf->ctr_freq_MHz, vf->datafile );
         }
 
         g_slist_free( filenames );

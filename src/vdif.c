@@ -17,12 +17,25 @@ void init_vdif_context( struct vdif_context *vc, size_t nframes, size_t nsamples
     vc->nsamples_max_view   = nsamples_max_view;
 }
 
+inline void init_vdif_file( struct vdif_file *vf )
+{
+    memset( vf, 0, sizeof(struct vdif_file) );
+
+    // Allocate memory just for the datafile name (since ascii_header.c
+    // assumes it's already allocated)
+
+    // Assume that data filenames will not be bigger than 4096 bytes long
+    vf->datafile = (char *)malloc( 4096 );
+
+}
+
 void add_vdif_file_to_context( void *ptr1, void *ptr2 )
 {
     char *hdrfile = (char *)ptr1;
     struct vdif_context *vc = (struct vdif_context *)ptr2;
 
     struct vdif_file *vf = (struct vdif_file *)malloc( sizeof(struct vdif_file) );
+    init_vdif_file( vf );
     load_vdif( vf, hdrfile );
     vc->channels = g_slist_append( vc->channels, vf );
 }
@@ -55,8 +68,9 @@ void load_vdif( struct vdif_file *vf, char *hdrfile )
     vf->hdr = load_file_contents_as_str( hdrfile );
 
     // Parse frequency information
-    ascii_header_get( vf->hdr, "FREQ", "%f", &vf->ctr_freq_MHz );
-    ascii_header_get( vf->hdr, "BW",   "%f", &vf->bw_MHz       );
+    ascii_header_get( vf->hdr, "FREQ",     "%f", &vf->ctr_freq_MHz );
+    ascii_header_get( vf->hdr, "BW",       "%f", &vf->bw_MHz       );
+    ascii_header_get( vf->hdr, "DATAFILE", "%s", &vf->datafile     );
 }
 
 void free_vdif_file( void *ptr )
@@ -65,8 +79,12 @@ void free_vdif_file( void *ptr )
         return;
 
     struct vdif_file *vf = (struct vdif_file *)ptr;
+
     free( vf->hdrfile );
     free( vf->hdr );
+    free( vf->datafile );
+    cudaFreeHost( vf->data );
+    cudaFree( vf->d_data );
     free( vf );
 }
 
