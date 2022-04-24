@@ -1,23 +1,22 @@
 CC = g++
 NVCC = nvcc
-NVCCLIBS = -lGL -lGLU -lglut -lGLEW `pkg-config --libs gtk+-3.0`
-LDLIBS = $(NVCCLIBS) -lcuda -lcudart
+NVCCLIBS = `pkg-config --libs gtk+-3.0 gl glu glut glew vdifio`
+LDLIBS = $(NVCCLIBS) \
+		 `pkg-config --libs-only-l cuda cudart`
 LDFLAGS = `pkg-config --libs-only-L cuda cudart`
 NVCCFLAGS = -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored
 CFLAGS = -Wall -Wextra -O2 -march=native `pkg-config --cflags cuda` `pkg-config --cflags gtk+-3.0`
 
 
-OBJECTS = dm-slider.o cohdd.o
+OBJECTS = dm-slider.o cohdd.o vdif.o ascii_header.o
 
-test: dm-slider
+run: dm-slider
 	./$<
-
-all: $(OBJECTS)
 
 %.o: %.cu
 	$(NVCC) -c -o $@ $< $(NVCCFLAGS)
 
-dm-slider: dm-slider.o cohdd.o
+dm-slider: $(OBJECTS)
 	$(NVCC) -o $@ $^ $(NVCCLIBS)
 
 #dm-slider.o: dm-slider.c vert.shader frag.shader
