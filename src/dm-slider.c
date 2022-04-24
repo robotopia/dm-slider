@@ -23,6 +23,9 @@
 // The app window
 GtkWidget *window;
 
+// the VDIF context
+struct vdif_context vc;
+
 // Mouse states
 static double xprev;
 static double yprev;
@@ -195,6 +198,11 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
     }
 }
 
+int gslist_strcmp( const void *a, const void *b )
+{
+    return strcmp( (char *)a, (char *)b );
+}
+
 static gboolean open_file_callback( GtkWidget *widget, gpointer data )
 {
     if (!data) { }
@@ -214,18 +222,31 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
             GTK_RESPONSE_ACCEPT,
             NULL );
 
+    GtkFileChooser *chooser = GTK_FILE_CHOOSER( dialog );
+    gtk_file_chooser_set_select_multiple ( chooser, true );
     res = gtk_dialog_run( GTK_DIALOG(dialog) );
     if (res == GTK_RESPONSE_ACCEPT)
     {
-        char *filename;
-        GtkFileChooser *chooser = GTK_FILE_CHOOSER( dialog );
-        filename = gtk_file_chooser_get_filename( chooser );
-        struct vdif_file vf;
-        load_vdif( &vf, filename );
-        printf( "Channel: %f +/- %f MHz\n", vf.ctr_freq_MHz, vf.bw_MHz/2.0 );
-        free( vf.hdrfile );
-        free( vf.hdr );
-        g_free( filename );
+        // Get rid of the previous lot
+        destroy_all_vdif_files( &vc );
+
+        GSList *filenames;
+        filenames = gtk_file_chooser_get_filenames( chooser );
+        filenames = g_slist_sort( filenames, gslist_strcmp );
+
+        // Load VDIFs
+        init_vdif_context( &vc, 8, 1024 );
+        add_vdif_files_to_context( &vc, filenames );
+
+        GSList *iter;
+        struct vdif_file *vf;
+        for (iter = vc.channels; iter != NULL; iter = iter->next)
+        {
+            vf = (struct vdif_file *)iter->data;
+            printf( "%s: %f MHz\n", vf->hdrfile, vf->ctr_freq_MHz );
+        }
+
+        g_slist_free( filenames );
     }
 
     gtk_widget_destroy( dialog );
@@ -453,6 +474,8 @@ int main( int argc, char *argv[] )
     gpuErrchk( cudaDestroySurfaceObject( opengl_data.surf ) );
     gpuErrchk( cudaFreeArray( opengl_data.cuArray ) );
     gpuErrchk( cudaFree( opengl_data.d_image ) );
+
+    destroy_all_vdif_files( &vc );
 
     return EXIT_SUCCESS;
 }
