@@ -5,6 +5,10 @@
 
 #include <vdifio.h>
 
+#include <cuda_runtime.h>
+#include <cuComplex.h>
+#include "cudaErrorChecking.h"
+
 #include "dm-slider.h"
 #include "ascii_header.h"
 
@@ -36,7 +40,7 @@ void add_vdif_file_to_context( void *ptr1, void *ptr2 )
 
     struct vdif_file *vf = (struct vdif_file *)malloc( sizeof(struct vdif_file) );
     init_vdif_file( vf );
-    load_vdif( vf, hdrfile );
+    load_vdif( vf, hdrfile, vc->nframes );
     vc->channels = g_slist_append( vc->channels, vf );
 }
 
@@ -45,7 +49,7 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
     g_slist_foreach( filenames, add_vdif_file_to_context, vc );
 }
 
-void load_vdif( struct vdif_file *vf, char *hdrfile )
+void load_vdif( struct vdif_file *vf, char *hdrfile, size_t nframes )
 {
     // Check that non-null pointers were given
     if (!vf)
@@ -88,6 +92,32 @@ void load_vdif( struct vdif_file *vf, char *hdrfile )
         s = vf->datafile + n;
         strcpy( s, datafile );
     }
+
+    // Open the datafile and read in the first header to get the size of a frame
+    FILE *f = fopen( vf->datafile, "r" );
+    if (!f)
+    {
+        fprintf( stderr, "WARNING: could not open %s\n", vf->datafile );
+        return;
+    }
+
+    vdif_header vhdr;
+    fread( &vhdr, VDIF_HEADER_BYTES, 1, f );
+    vf->framelength = vhdr.framelength8 * 8;
+
+    // Allocate memory on both CPU and GPU
+    size_t nbytes = vf->framelength * nframes;
+    gpuErrchk( cudaMallocHost( &vf->data, nbytes ) );
+    gpuErrchk( cudaMalloc( &vf->d_data, nbytes ) );
+
+    // Read in the data
+    rewind( f );
+    fread( vf->data, nbytes, 1, f );
+    fclose( f );
+
+    // Upload to the GPU
+    gpuErrchk( cudaMemcpy( vf->d_data, vf->data, nbytes, cudaMemcpyHostToDevice ) );
+    gpuErrchk( cudaDeviceSynchronize() );
 }
 
 void free_vdif_file( void *ptr )

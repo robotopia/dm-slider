@@ -13,6 +13,7 @@ struct vdif_file
     char  *datafile;      // The name of the data file
     void  *data;          // The contents of the data file (CPU)
     void  *d_data;        // The contents of the data file (GPU)
+    uint32_t framelength; // The size of a frame (including header), in bytes
 };
 
 struct vdif_context
@@ -38,7 +39,7 @@ float *cudaCreateImage( cudaSurfaceObject_t surf, int w, int h );
 
 void init_vdif_context( struct vdif_context *vc, size_t nframes, size_t nsamples_max_view );
 
-void load_vdif( struct vdif_file *vf, char *hdrfile );
+void load_vdif( struct vdif_file *vf, char *hdrfile, size_t nframes );
 
 void destroy_all_vdif_files( struct vdif_context *vc );
 
