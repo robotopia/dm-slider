@@ -220,7 +220,11 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         char *filename;
         GtkFileChooser *chooser = GTK_FILE_CHOOSER( dialog );
         filename = gtk_file_chooser_get_filename( chooser );
-        printf( "%s\n", filename );
+        struct vdif_file vf;
+        load_vdif( &vf, filename );
+        printf( "Channel: %f +/- %f MHz\n", vf.ctr_freq_MHz, vf.bw_MHz/2.0 );
+        free( vf.hdrfile );
+        free( vf.hdr );
         g_free( filename );
     }
 

@@ -34,6 +34,7 @@ float *cudaCreateImage( cudaSurfaceObject_t surf, int w, int h );
 
 // Defined in vdif.c:
 
-//void load_vdifs...
+void init_vdif_context( struct vdif_context *vc, size_t nframes, size_t nsamples_max_view );
+void load_vdif( struct vdif_file *vf, char *hdrfile );
 
 #endif
