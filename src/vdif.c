@@ -67,10 +67,27 @@ void load_vdif( struct vdif_file *vf, char *hdrfile )
     // Load the header file contents
     vf->hdr = load_file_contents_as_str( hdrfile );
 
+    char datafile[4096];
     // Parse frequency information
     ascii_header_get( vf->hdr, "FREQ",     "%f", &vf->ctr_freq_MHz );
     ascii_header_get( vf->hdr, "BW",       "%f", &vf->bw_MHz       );
-    ascii_header_get( vf->hdr, "DATAFILE", "%s", &vf->datafile     );
+    ascii_header_get( vf->hdr, "DATAFILE", "%s", datafile          );
+
+    // Prepend the same path from hdrfile to datafile
+    char *s = strrchr( hdrfile, '/' );
+    if (!s)
+    {
+        // If no path was found, don't prepend one!
+        strcpy( vf->datafile, datafile );
+    }
+    else
+    {
+        // Some pointer fun to copy the path, and then append the filename
+        int n = s - hdrfile + 1;
+        strncpy( vf->datafile, hdrfile, s-hdrfile+1 );
+        s = vf->datafile + n;
+        strcpy( s, datafile );
+    }
 }
 
 void free_vdif_file( void *ptr )

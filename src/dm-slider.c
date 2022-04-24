@@ -228,7 +228,9 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
     if (res == GTK_RESPONSE_ACCEPT)
     {
         // Get rid of the previous lot
+        printf( "channels: %p\n", vc.channels );
         destroy_all_vdif_files( &vc );
+        printf( "channels: %p\n", vc.channels );
 
         GSList *filenames;
         filenames = gtk_file_chooser_get_filenames( chooser );
@@ -236,15 +238,16 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
 
         // Load VDIFs
         init_vdif_context( &vc, 8, 1024 );
+        printf( "channels: %p\n", vc.channels );
         add_vdif_files_to_context( &vc, filenames );
+        printf( "channels: %p\n", vc.channels );
 
         GSList *iter;
         struct vdif_file *vf;
         for (iter = vc.channels; iter != NULL; iter = iter->next)
         {
             vf = (struct vdif_file *)iter->data;
-            printf( "%s:\n\t%f MHz\n", vf->hdrfile, vf->ctr_freq_MHz );
-            //printf( "%s:\n\t%f MHz\n\t%p\n", vf->hdrfile, vf->ctr_freq_MHz, vf->datafile );
+            printf( "%s:\n\t%f MHz\n\t%s\n", vf->hdrfile, vf->ctr_freq_MHz, vf->datafile );
         }
 
         g_slist_free( filenames );
