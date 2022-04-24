@@ -20,6 +20,9 @@
 // GLUT-related constants
 #define OPEN_FILE  1
 
+// The app window
+GtkWidget *window;
+
 // Mouse states
 static double xprev;
 static double yprev;
@@ -192,16 +195,47 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
     }
 }
 
-static gboolean print_button_event( GtkWidget *widget, GdkEventButton *event, gpointer data )
+static gboolean open_file_callback( GtkWidget *widget, gpointer data )
+{
+    if (!data) { }
+    if (!widget)
+        return false;
+
+    GtkWidget *dialog;
+    GtkFileChooserAction action = GTK_FILE_CHOOSER_ACTION_OPEN;
+    gint res;
+
+    dialog = gtk_file_chooser_dialog_new( "Open File",
+            GTK_WINDOW(window),
+            action,
+            "_Cancel",
+            GTK_RESPONSE_CANCEL,
+            "_Open",
+            GTK_RESPONSE_ACCEPT,
+            NULL );
+
+    res = gtk_dialog_run( GTK_DIALOG(dialog) );
+    if (res == GTK_RESPONSE_ACCEPT)
+    {
+        char *filename;
+        GtkFileChooser *chooser = GTK_FILE_CHOOSER( dialog );
+        filename = gtk_file_chooser_get_filename( chooser );
+        printf( "%s\n", filename );
+        g_free( filename );
+    }
+
+    gtk_widget_destroy( dialog );
+
+    return true;
+}
+
+static gboolean print_button_event( GtkWidget *widget, gpointer data )
 {
     if (data) { }
     if (!widget)
         return false;
 
-    printf( "clicked button #%d at (%lf,%lf)... or is it (%lf,%lf)?\n",
-            event->button,
-            event->x_root, event->y_root,
-            event->x, event->y );
+    printf( "Button clicked\n" );
 
     return true;
 }
@@ -332,10 +366,16 @@ static void on_glarea_realize( GtkGLArea *glarea )
 
 int main( int argc, char *argv[] )
 {
-    GtkWidget *window;
     GtkWidget *vbox;
     GtkWidget *button;
     GtkWidget *glarea;
+    GtkWidget *menubar;
+    GtkWidget *menu;
+    GtkWidget *menuitemFile;
+    GtkWidget *menuitemOpen;
+    GtkWidget *menuitemQuit;
+    GtkWidget *separator;
+    GtkAccelGroup *accel_group;
 
     windowWidth = 640;
     windowHeight = 480;
@@ -349,12 +389,30 @@ int main( int argc, char *argv[] )
     g_signal_connect( G_OBJECT(window), "destroy",
             G_CALLBACK(gtk_main_quit), NULL );
 
-    vbox = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
-    glarea = gtk_gl_area_new();
-    button = gtk_button_new_with_label( "Button" );
+    accel_group = gtk_accel_group_new ();
+    vbox        = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+    glarea      = gtk_gl_area_new();
+    button      = gtk_button_new_with_label( "Button" );
     //gtk_widget_set_tooltip_text(button, "Button widget");
 
+    // Add menu items
+    menubar      = gtk_menu_bar_new();
+    menu         = gtk_menu_new();
+    menuitemFile = gtk_menu_item_new_with_label( "File" );
+    menuitemOpen = gtk_menu_item_new_with_label( "Open" );
+    separator    = gtk_separator_menu_item_new();
+    menuitemQuit = gtk_menu_item_new_with_label( "Quit" );
+
+    gtk_menu_shell_append( GTK_MENU_SHELL(menu), menuitemOpen );
+    gtk_menu_shell_append( GTK_MENU_SHELL(menu), separator );
+    gtk_menu_shell_append( GTK_MENU_SHELL(menu), menuitemQuit );
+    gtk_menu_item_set_submenu( GTK_MENU_ITEM(menuitemFile), menu );
+    gtk_menu_shell_append( GTK_MENU_SHELL(menubar), menuitemFile );
+
+    // Connect everything together
+    gtk_window_add_accel_group( GTK_WINDOW(window), accel_group ); // Doesn't do anything yet
     gtk_container_add( GTK_CONTAINER(window), vbox );
+    gtk_container_add( GTK_CONTAINER(vbox), menubar );
     gtk_container_add( GTK_CONTAINER(vbox), glarea );
     gtk_container_add( GTK_CONTAINER(vbox), button );
     gtk_box_set_child_packing( GTK_BOX(vbox), glarea, true, true, 0, GTK_PACK_START );
@@ -374,7 +432,11 @@ int main( int argc, char *argv[] )
     g_signal_connect( G_OBJECT(glarea), "realize",
             G_CALLBACK(on_glarea_realize), NULL );
 
-    g_signal_connect( G_OBJECT(button), "button-press-event",
+    g_signal_connect( G_OBJECT(menuitemOpen), "activate",
+            G_CALLBACK(open_file_callback), NULL );
+    g_signal_connect( G_OBJECT(menuitemQuit), "activate",
+            G_CALLBACK(gtk_main_quit), NULL );
+    g_signal_connect( G_OBJECT(button), "clicked",
             G_CALLBACK(print_button_event), NULL );
 
     drag_mode = false;
@@ -383,7 +445,6 @@ int main( int argc, char *argv[] )
 
     gtk_main();
 
-    // Is this ever reached?
     //gpuErrchk( cudaFree( opengl_data.d_points ) );
     gpuErrchk( cudaDestroySurfaceObject( opengl_data.surf ) );
     gpuErrchk( cudaFreeArray( opengl_data.cuArray ) );
