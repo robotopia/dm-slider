@@ -4,10 +4,15 @@ out vec4 frag_colour;
 
 in vec2 TexCoord;
 
+uniform vec2 DynamicRange;
 uniform sampler2D ourTexture;
 
 vec4 colormap( float x )
 {
+    // Normalise to dynamic range
+    x = (x - DynamicRange.x)/(DynamicRange.y - DynamicRange.x);
+
+    // Convert to RGB (heat map)
     float r = clamp(8.0 / 3.0 * x, 0.0, 1.0);
     float g = clamp(8.0 / 3.0 * x - 1.0, 0.0, 1.0);
     float b = clamp(4.0 * x - 3.0, 0.0, 1.0);

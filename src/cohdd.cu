@@ -139,13 +139,6 @@ void cudaRotatePoints_kernel( float *points, float rad )
     points[stride*i+1] = s*x + c*y;
 }
 
-__global__
-void cudaChangeBrightness_kernel( float *image, float amount )
-{
-    int i = blockIdx.x*blockDim.x + threadIdx.x;
-    image[i] += amount;
-}
-
 /*  ^      ^     ^
     |      |     |
    DEVICE FUNCTIONS
@@ -187,15 +180,6 @@ void cudaCopyToSurface( cudaSurfaceObject_t surf, float *d_image, int w, int h )
     gpuErrchk( cudaDeviceSynchronize() );
 }
 
-
-void cudaChangeBrightness( cudaSurfaceObject_t surf, float *d_image, float amount, int w, int h )
-{
-    cudaChangeBrightness_kernel<<<w,h>>>( d_image, amount );
-    gpuErrchk( cudaPeekAtLastError() );
-    gpuErrchk( cudaDeviceSynchronize() );
-
-    cudaCopyToSurface( surf, d_image, w, h );
-}
 
 float *cudaCreateImage( float *d_image, int w, int h )
 {

@@ -53,9 +53,13 @@ struct opengl_data_t
     struct cudaChannelFormatDesc channelDesc;
     int w, h;
     GLuint tex;
+    GLuint shader_program;
+    GLint dynamicRangeLoc;
 };
 
 struct opengl_data_t opengl_data;
+
+float dynamicRange[] = { 0.0, 1.0 };
 
 // CONTAINS CODE I STILL WANT TO RECYCLE:
 /*
@@ -132,7 +136,6 @@ void mouse_release_callback( GtkWidget *widget, GdkEventButton *event, gpointer 
             break;
         case 3: // Right mouse button
             drag_mode = DRAG_NONE;
-            gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
             break;
         default:
             break;
@@ -159,8 +162,6 @@ void mouse_button_callback( GtkWidget *widget, GdkEventButton *event, gpointer d
             xprev = event->x;
             yprev = event->y;
             drag_mode = DRAG_RIGHT;
-            gpuErrchk( cudaGraphicsMapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
-            gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &(opengl_data.cuArray), opengl_data.cudaImageResource, 0, 0 ) );
             break;
         default:
             break;
@@ -193,7 +194,9 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
 
         float dy = YNORM(ypos) - YNORM(yprev);
 
-        cudaChangeBrightness( opengl_data.surf, opengl_data.d_image, dy, opengl_data.w, opengl_data.h );
+        dynamicRange[0] += dy;
+        dynamicRange[1] += dy;
+        glProgramUniform2fv( opengl_data.shader_program, opengl_data.dynamicRangeLoc, 1, dynamicRange );
 
         xprev = xpos;
         yprev = ypos;
@@ -381,7 +384,7 @@ static void on_glarea_realize( GtkGLArea *glarea )
     // Define a place for the points to live in global memory
     //gpuErrchk( cudaMalloc( (void **)&(opengl_data.d_points), sizeof(points) ) );
 
-    GLuint vbo = 0;
+    GLuint vbo;
     glGenBuffers( 1, &vbo );
     glBindBuffer( GL_ARRAY_BUFFER, vbo );
     glBufferData( GL_ARRAY_BUFFER, 16 * sizeof(float), points, GL_STATIC_DRAW );
@@ -392,8 +395,8 @@ static void on_glarea_realize( GtkGLArea *glarea )
     GLuint vao = 0;
     glGenVertexArrays( 1, &vao );
     glBindVertexArray( vao );
-    glBindBuffer( GL_ARRAY_BUFFER, vbo );
 
+    glBindBuffer( GL_ARRAY_BUFFER, vbo );
     glVertexAttribPointer( 0, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), NULL );
     glEnableVertexAttribArray( 0 );
     glVertexAttribPointer( 1, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void *)(2*sizeof(float)) );
@@ -427,11 +430,14 @@ static void on_glarea_realize( GtkGLArea *glarea )
     glShaderSource(fs, 1, &fragment_shader, NULL);
     glCompileShader(fs);
 
-    GLuint shader_programme = glCreateProgram();
-    glAttachShader(shader_programme, fs);
-    glAttachShader(shader_programme, vs);
-    glLinkProgram(shader_programme);
-    glUseProgram(shader_programme);
+    opengl_data.shader_program = glCreateProgram();
+    glAttachShader(opengl_data.shader_program, fs);
+    glAttachShader(opengl_data.shader_program, vs);
+    glLinkProgram(opengl_data.shader_program);
+    glUseProgram(opengl_data.shader_program);
+
+    opengl_data.dynamicRangeLoc = glGetUniformLocation( opengl_data.shader_program, "DynamicRange" );
+    glProgramUniform2fv( opengl_data.shader_program, opengl_data.dynamicRangeLoc, 1, dynamicRange );
 }
 
 int main( int argc, char *argv[] )

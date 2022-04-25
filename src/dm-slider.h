@@ -33,7 +33,6 @@ struct vdif_context
 
 void cudaRotatePoints( float *points, float rad );
 void cudaCopyToSurface( cudaSurfaceObject_t surf, float *d_image, int w, int h );
-void cudaChangeBrightness( cudaSurfaceObject_t surf, float *d_image, float amount, int w, int h );
 void cudaCreateImage( float *d_image, int w, int h );
 
 void cudaVDIFToFloatComplex( void *d_dest, void *d_src, size_t framelength, size_t headerlength, size_t nsamples );
