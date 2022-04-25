@@ -254,11 +254,26 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         cudaStokesI( opengl_data.d_image, vc.d_data, vc.ndual_pol_samples );
 
         // Load to surface
-        opengl_data.w = vc.ndual_pol_samples;
-        opengl_data.h = g_slist_length( vc.channels );
+        int nchans = g_slist_length( vc.channels );
+        opengl_data.w = vc.ndual_pol_samples / nchans;
+        opengl_data.h = nchans;
         init_texture_and_surface();
 
         g_slist_free( filenames );
+// DEBUG
+float *image;
+size_t size = opengl_data.w * opengl_data.h * sizeof(float);
+gpuErrchk( cudaMallocHost( (void **)&image, size ) );
+gpuErrchk( cudaMemcpy( image, opengl_data.d_image, size, cudaMemcpyDeviceToHost ) );
+FILE *f = fopen( "foo.txt", "w" );
+int x, y;
+for (x = 0; x < opengl_data.h; x++)
+for (y = 0; y < opengl_data.w; y++)
+{
+    fprintf( f, "%d %d %f\n", x, y, image[x*opengl_data.w + y] );
+}
+fclose(f);
+
     }
 
     gtk_widget_destroy( dialog );
@@ -328,6 +343,7 @@ void init_texture_and_surface()
     opengl_data.surfRes.res.array.array = opengl_data.cuArray;
     gpuErrchk( cudaCreateSurfaceObject( &(opengl_data.surf), &(opengl_data.surfRes) ) );
 
+    fprintf( stderr, "w, h = %d, %d\n", opengl_data.w, opengl_data.h );
     cudaCopyToSurface( opengl_data.surf, opengl_data.d_image, opengl_data.w, opengl_data.h );
 
     gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
@@ -356,8 +372,8 @@ static void on_glarea_realize( GtkGLArea *glarea )
     // Define some points (to make a square)
     float points[] = {
         // vertices   // texcoords
-        0.5f,  0.5f, 1.0f, 1.0f,
-        0.5f, -0.5f, 1.0f, 0.0f,
+        0.5f,   0.5f, 1.0f, 1.0f,
+        0.5f,  -0.5f, 1.0f, 0.0f,
         -0.5f,  0.5f, 0.0f, 1.0f,
         -0.5f, -0.5f, 0.0f, 0.0f
     };

@@ -82,7 +82,7 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
     unsigned int nchans = g_slist_length( vc->channels );
     size_t size_per_chan    = vc->nframes * (framelength - VDIF_HEADER_BYTES) * (sizeof(float)/sizeof(char));
     vc->npols = 2;
-    size_t samples_per_chan = vc->nframes * (framelength - VDIF_HEADER_BYTES) / (2*vc->npols); // 2 = ncmplx
+    size_t samples_per_chan = vc->nframes * (framelength - VDIF_HEADER_BYTES) / 2; // 2 = ncmplx
     vc->size = nchans * size_per_chan;
     vc->ndual_pol_samples = vc->size / (sizeof(cuFloatComplex) * vc->npols);
     printf( "%lu\n", vc->size );

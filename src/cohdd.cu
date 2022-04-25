@@ -19,8 +19,10 @@
  * @param frameSizeBytes  The number of bytes per VDIF frame
  *                        (including the header)
  * @param headerSizeBytes The number of bytes per VDIF frame header
+ *
+ * Each thread will converts one complex sample (= 2 bytes of input)
  */
-__global__ void cudaVDIFToFloatComplex_kernel( char2 *in, cuFloatComplex *out, int frameSizeBytes, int headerSizeBytes )
+__global__ void cudaVDIFToFloatComplex_kernel( uint8_t *in, cuFloatComplex *out, int frameSizeBytes, int headerSizeBytes )
 {
     // The size of just the data part of the frame
     int dataSizeBytes = frameSizeBytes - headerSizeBytes;
@@ -29,7 +31,7 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *in, cuFloatComplex *out, i
     int i = threadIdx.x + blockIdx.x*blockDim.x; // Index of (non-header) data sample
 
     // Express the index in terms of bytes
-    int i2 = i*sizeof(char2);
+    int i2 = i*sizeof(uint8_t)*2;
 
     // Get the frame number for this byte, and the idx within this frame
     int frame      = i2 / dataSizeBytes;
@@ -40,10 +42,13 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *in, cuFloatComplex *out, i
     int out_idx = i;
 
     // Bring the sample to register memory
-    char2 sample = in[in_idx];
+    uint8_t sample_x = in[in_idx];
+    uint8_t sample_y = in[in_idx+1];
 
     // Turn it into a float and write it to global memory
-    out[out_idx] = make_cuFloatComplex( (float)sample.x - 128.0, sample.y - 128.0 );
+    out[out_idx] = make_cuFloatComplex(
+            ((float)sample_x)/256.0f - 0.5f,
+            ((float)sample_y)/256.0f - 0.5f );
 }
 
 /**
@@ -152,8 +157,10 @@ void cudaChangeBrightness_kernel( float *image, float amount )
 
 void cudaVDIFToFloatComplex( void *d_dest, void *d_src, size_t framelength, size_t headerlength, size_t nsamples )
 {
-    cudaVDIFToFloatComplex_kernel<<<nsamples/1024, 1024>>>(
-                (char2 *)d_src,
+    dim3 blocks((nsamples-1)/1024+1);
+    dim3 threads(1024);
+    cudaVDIFToFloatComplex_kernel<<<blocks, threads>>>(
+                (uint8_t *)d_src,
                 (cuFloatComplex *)d_dest,
                 framelength,
                 headerlength );
@@ -161,7 +168,9 @@ void cudaVDIFToFloatComplex( void *d_dest, void *d_src, size_t framelength, size
 
 void cudaStokesI( float *d_dest, cuFloatComplex *d_src, size_t nDualPolSamples )
 {
-    cudaStokesI_kernel<<<nDualPolSamples/1024, 1024>>>( d_src, d_dest );
+    dim3 blocks((nDualPolSamples-1)/1024+1);
+    dim3 threads(1024);
+    cudaStokesI_kernel<<<blocks, threads>>>( d_src, d_dest );
 }
 
 void cudaRotatePoints( float *d_points, float rad )
