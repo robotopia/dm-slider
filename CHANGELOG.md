@@ -1,9 +1,15 @@
 # Change log
 
+## v0.4
+
+Implemented basic VDIF support (Issue #5).
+You can load multiple VDIF files, and it will display them on the quad.
+Although the dynamic range is now controlled (in the correct way) via uniforms in the fragment shader, there is still only basic control via the right button mouse click, to shift the dynamic range up and down.
+
 ## v0.3
 
-Switched from GLFW to GTK (Issue #6).
-Reorganised code and filenames (changed from `coherent_dedispersion.cu` to `dm-slider.c` and `cohdd.cu`).
+- Switched from GLFW to GTK (Issue #6).
+- Reorganised code and filenames (changed from `coherent_dedispersion.cu` to `dm-slider.c` and `cohdd.cu`).
 
 ## v0.2
 
