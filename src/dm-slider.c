@@ -55,64 +55,20 @@ struct opengl_data_t
     GLuint tex;
     GLuint shader_program;
     GLint dynamicRangeLoc;
+    GLint tRangeLoc;
 };
 
 struct opengl_data_t opengl_data;
 
-float dynamicRange[] = { 0.0, 1.0 };
-
-// CONTAINS CODE I STILL WANT TO RECYCLE:
-/*
-{
-    // Prepare some test data
-    size_t nFrames            = 4;
-    size_t frameSizeBytes     = 544;
-    size_t headerSizeBytes    = 32;
-    size_t dataSizeBytes      = frameSizeBytes - headerSizeBytes;
-    size_t nSamples           = nFrames * dataSizeBytes / sizeof(char2);
-    size_t nPols              = 2;
-    size_t nDualPolSamples    = nSamples / nPols;
-    size_t vdifSizeBytes      = frameSizeBytes*nFrames;
-    size_t vdifDataSizeBytes = nSamples * sizeof(cuFloatComplex);
-    size_t stokesISizeBytes   = nDualPolSamples * sizeof(float);
-
-    // Allocate memory
-    char2 *vdif, *d_vdif;
-    cuFloatComplex *d_vdifData;
-    float *d_StokesI;
-
-    gpuErrchk( cudaMallocHost( &vdif, vdifSizeBytes ) );
-    gpuErrchk( cudaMalloc( &d_vdif, vdifSizeBytes ) );
-    gpuErrchk( cudaMalloc( &d_vdifData, vdifDataSizeBytes ) );
-    gpuErrchk( cudaMalloc( &d_StokesI, stokesISizeBytes ) );
-
-    FILE *f = fopen( "../tests/testdata.vdif", "r" );
-    fread( vdif, vdifSizeBytes, 1, f );
-    fclose( f );
-
-    // Load it up and strip the headers
-    gpuErrchk( cudaMemcpy( d_vdif, vdif, nFrames * frameSizeBytes, cudaMemcpyHostToDevice ) );
-    gpuErrchk( cudaDeviceSynchronize() );
-
-    cudaVDIFToFloatComplex<<<nSamples/1024, 1024>>>( d_vdif, d_vdifData, frameSizeBytes, headerSizeBytes );
-    gpuErrchk( cudaDeviceSynchronize() );
-
-    cudaStokesI<<<nDualPolSamples/1024, 1024>>>( d_vdifData, d_StokesI );
-    gpuErrchk( cudaDeviceSynchronize() );
-
-    // Clean up memory
-    gpuErrchk( cudaFree( d_vdif ) );
-    gpuErrchk( cudaFree( d_vdifData ) );
-    gpuErrchk( cudaFree( d_StokesI ) );
-    gpuErrchk( cudaFreeHost( vdif ) );
-}
-*/
+float dynamicRange[] = { -1.0e-2, 1.0e-2 };
+float tRange[] = { 0.0f, 1.0f };
 
 void init_texture_and_surface();
 
 void draw()
 {
     // Clear the surface
+    glClearColor( 1.0f, 1.0f, 1.0f, 0.0f );
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
     //glActiveTexture( GL_TEXTURE0 );
@@ -132,7 +88,7 @@ void mouse_release_callback( GtkWidget *widget, GdkEventButton *event, gpointer 
     {
         case 1: // Left mouse button
             drag_mode = DRAG_NONE;
-            gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaPointsResource), 0 ) );
+            //gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaPointsResource), 0 ) );
             break;
         case 3: // Right mouse button
             drag_mode = DRAG_NONE;
@@ -155,8 +111,8 @@ void mouse_button_callback( GtkWidget *widget, GdkEventButton *event, gpointer d
             xprev = event->x;
             yprev = event->y;
             drag_mode = DRAG_LEFT;
-            gpuErrchk( cudaGraphicsMapResources( 1, &(opengl_data.cudaPointsResource), 0 ) );
-            gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&(opengl_data.d_points), &size, opengl_data.cudaPointsResource ) );
+            //gpuErrchk( cudaGraphicsMapResources( 1, &(opengl_data.cudaPointsResource), 0 ) );
+            //gpuErrchk( cudaGraphicsResourceGetMappedPointer( (void **)&(opengl_data.d_points), &size, opengl_data.cudaPointsResource ) );
             break;
         case 3: // Right mouse button
             xprev = event->x;
@@ -179,10 +135,11 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
         double xpos = event->x;
         double ypos = event->y;
 
-        float rad = atan2(YNORM(ypos),  XNORM(xpos)) -
-                    atan2(YNORM(yprev), XNORM(xprev));
+        float dx = XNORM(xpos) - XNORM(xprev);
 
-        cudaRotatePoints( opengl_data.d_points, rad );
+        tRange[0] -= dx;
+        tRange[1] -= dx;
+        glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
 
         xprev = xpos;
         yprev = ypos;
@@ -240,7 +197,7 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         filenames = g_slist_sort( filenames, gslist_strcmp );
 
         // Load VDIFs
-        init_vdif_context( &vc, 8, 1024 );
+        init_vdif_context( &vc, 100, 1024 );
         add_vdif_files_to_context( &vc, filenames );
 
         GSList *iter;
@@ -263,20 +220,6 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         init_texture_and_surface();
 
         g_slist_free( filenames );
-// DEBUG
-float *image;
-size_t size = opengl_data.w * opengl_data.h * sizeof(float);
-gpuErrchk( cudaMallocHost( (void **)&image, size ) );
-gpuErrchk( cudaMemcpy( image, opengl_data.d_image, size, cudaMemcpyDeviceToHost ) );
-FILE *f = fopen( "foo.txt", "w" );
-int x, y;
-for (x = 0; x < opengl_data.h; x++)
-for (y = 0; y < opengl_data.w; y++)
-{
-    fprintf( f, "%d %d %f\n", x, y, image[x*opengl_data.w + y] );
-}
-fclose(f);
-
     }
 
     gtk_widget_destroy( dialog );
@@ -375,10 +318,10 @@ static void on_glarea_realize( GtkGLArea *glarea )
     // Define some points (to make a square)
     float points[] = {
         // vertices   // texcoords
-        0.5f,   0.5f, 1.0f, 1.0f,
-        0.5f,  -0.5f, 1.0f, 0.0f,
-        -0.5f,  0.5f, 0.0f, 1.0f,
-        -0.5f, -0.5f, 0.0f, 0.0f
+        1.0f, 1.0f, 1.0f, 1.0f,
+        1.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 1.0f,
+        0.0f, 0.0f, 0.0f, 0.0f
     };
 
     // Define a place for the points to live in global memory
@@ -438,22 +381,30 @@ static void on_glarea_realize( GtkGLArea *glarea )
 
     opengl_data.dynamicRangeLoc = glGetUniformLocation( opengl_data.shader_program, "DynamicRange" );
     glProgramUniform2fv( opengl_data.shader_program, opengl_data.dynamicRangeLoc, 1, dynamicRange );
+
+    opengl_data.tRangeLoc = glGetUniformLocation( opengl_data.shader_program, "tRange" );
+    glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
 }
 
 int main( int argc, char *argv[] )
 {
+    GtkWidget *hpaned;
     GtkWidget *vbox;
+    GtkWidget *settings_box;
     GtkWidget *button;
     GtkWidget *glarea;
+    GtkWidget *glColorbar;
+
     GtkWidget *menubar;
     GtkWidget *menu;
     GtkWidget *menuitemFile;
     GtkWidget *menuitemOpen;
     GtkWidget *menuitemQuit;
     GtkWidget *separator;
+
     GtkAccelGroup *accel_group;
 
-    windowWidth = 640;
+    windowWidth = 1080;
     windowHeight = 480;
 
     gtk_init(&argc, &argv);
@@ -465,11 +416,13 @@ int main( int argc, char *argv[] )
     g_signal_connect( G_OBJECT(window), "destroy",
             G_CALLBACK(gtk_main_quit), NULL );
 
-    accel_group = gtk_accel_group_new ();
-    vbox        = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
-    glarea      = gtk_gl_area_new();
-    button      = gtk_button_new_with_label( "Button" );
-    //gtk_widget_set_tooltip_text(button, "Button widget");
+    accel_group  = gtk_accel_group_new ();
+    hpaned       = gtk_paned_new( GTK_ORIENTATION_HORIZONTAL );
+    vbox         = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+    settings_box = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+    glarea       = gtk_gl_area_new();
+    glColorbar   = gtk_gl_area_new();
+    button       = gtk_button_new_with_label( "Button" );
 
     // Add menu items
     menubar      = gtk_menu_bar_new();
@@ -489,9 +442,13 @@ int main( int argc, char *argv[] )
     gtk_window_add_accel_group( GTK_WINDOW(window), accel_group ); // Doesn't do anything yet
     gtk_container_add( GTK_CONTAINER(window), vbox );
     gtk_container_add( GTK_CONTAINER(vbox), menubar );
-    gtk_container_add( GTK_CONTAINER(vbox), glarea );
-    gtk_container_add( GTK_CONTAINER(vbox), button );
-    gtk_box_set_child_packing( GTK_BOX(vbox), glarea, true, true, 0, GTK_PACK_START );
+    gtk_container_add( GTK_CONTAINER(vbox), hpaned );
+    gtk_paned_pack1( GTK_PANED(hpaned), glarea, true, true );
+    gtk_paned_pack2( GTK_PANED(hpaned), settings_box, true, true );
+    gtk_container_add( GTK_CONTAINER(settings_box), button );
+    gtk_box_set_child_packing( GTK_BOX(vbox), hpaned, true, true, 0, GTK_PACK_START );
+
+    gtk_widget_set_size_request( glarea, windowWidth - 300, -1 );
 
     gtk_widget_set_events( glarea,
             GDK_BUTTON_PRESS_MASK |
