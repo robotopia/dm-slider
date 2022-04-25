@@ -104,6 +104,8 @@ struct opengl_data_t opengl_data;
 }
 */
 
+void init_texture_and_surface();
+
 void draw()
 {
     // Clear the surface
@@ -246,6 +248,16 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
             printf( "%s:\n\t%f MHz\n\t%s\n", vf->hdrfile, vf->ctr_freq_MHz, vf->datafile );
         }
 
+        // Allocate memory in d_image and use it to store Stokes I data
+        gpuErrchk( cudaFree( opengl_data.d_image ) );
+        gpuErrchk( cudaMalloc( (void **)&opengl_data.d_image, vc.size ) );
+        cudaStokesI( opengl_data.d_image, vc.d_data, vc.ndual_pol_samples );
+
+        // Load to surface
+        opengl_data.w = vc.ndual_pol_samples;
+        opengl_data.h = g_slist_length( vc.channels );
+        init_texture_and_surface();
+
         g_slist_free( filenames );
     }
 
@@ -280,14 +292,23 @@ static gboolean render( GtkGLArea *glarea, GdkGLContext *context, gpointer data 
 
 void init_texture_and_surface()
 {
+    // Assumes opengl_data member variables w, h, and d_image are set
+
+    glDeleteTextures( 1, &(opengl_data.tex) );
+    glGenTextures( 1, &(opengl_data.tex) );
+    glBindTexture( GL_TEXTURE_2D, opengl_data.tex );
+
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
+    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
+
     gpuErrchk( cudaDestroySurfaceObject( opengl_data.surf ) );
     gpuErrchk( cudaFreeArray( opengl_data.cuArray ) );
 
     glBindTexture( GL_TEXTURE_2D, opengl_data.tex );
 
     glTexImage2D( GL_TEXTURE_2D, 0, GL_R32F, opengl_data.w, opengl_data.h, 0, GL_RED, GL_FLOAT, NULL );
-
-    glBindTexture( GL_TEXTURE_2D, 0 );
 
     gpuErrchk(
             cudaGraphicsGLRegisterImage(
@@ -306,6 +327,8 @@ void init_texture_and_surface()
     opengl_data.surfRes.resType = cudaResourceTypeArray;
     opengl_data.surfRes.res.array.array = opengl_data.cuArray;
     gpuErrchk( cudaCreateSurfaceObject( &(opengl_data.surf), &(opengl_data.surfRes) ) );
+
+    cudaCopyToSurface( opengl_data.surf, opengl_data.d_image, opengl_data.w, opengl_data.h );
 
     gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
 
@@ -360,24 +383,16 @@ static void on_glarea_realize( GtkGLArea *glarea )
     glVertexAttribPointer( 1, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void *)(2*sizeof(float)) );
     glEnableVertexAttribArray( 1 );
 
-    // Texture
-    glGenTextures( 1, &(opengl_data.tex) );
-    glBindTexture( GL_TEXTURE_2D, opengl_data.tex );
-
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT );
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT );
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
-    glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
-
-    opengl_data.d_image = NULL;
+    // Set up initial texture and surface
     opengl_data.w = 10;
     opengl_data.h = 10;
-    init_texture_and_surface();
 
     // Create dummy image
     size_t size = opengl_data.w * opengl_data.h * sizeof(float);
     gpuErrchk( cudaMalloc( (void **)&(opengl_data.d_image), size ) );
-    cudaCreateImage( opengl_data.d_image, opengl_data.surf, opengl_data.w, opengl_data.h );
+    cudaCreateImage( opengl_data.d_image, opengl_data.w, opengl_data.h );
+
+    init_texture_and_surface();
 
     // Set up shaders
 

@@ -46,15 +46,6 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *in, cuFloatComplex *out, i
     out[out_idx] = make_cuFloatComplex( (float)sample.x - 128.0, sample.y - 128.0 );
 }
 
-void cudaVDIFToFloatComplex( void *d_dest, void *d_src, size_t framelength, size_t headerlength, size_t nsamples )
-{
-    cudaVDIFToFloatComplex_kernel<<<nsamples/1024, 1024>>>(
-                (char2 *)d_src,
-                (cuFloatComplex *)d_dest,
-                framelength,
-                headerlength );
-}
-
 /**
  * Apply a phase ramp to complex data
  *
@@ -101,7 +92,6 @@ __global__ void cudaStokesI_kernel( cuFloatComplex *data, float *stokesI )
     // Calculate Stokes I
     stokesI[i] = X.x*X.x + X.y*X.y + Y.x*Y.x + Y.y*Y.y;
 }
-
 
 __global__
 void cudaCreateImage_kernel( float *image, int width, int height )
@@ -160,6 +150,20 @@ void cudaChangeBrightness_kernel( float *image, float amount )
     v     v     v
 */
 
+void cudaVDIFToFloatComplex( void *d_dest, void *d_src, size_t framelength, size_t headerlength, size_t nsamples )
+{
+    cudaVDIFToFloatComplex_kernel<<<nsamples/1024, 1024>>>(
+                (char2 *)d_src,
+                (cuFloatComplex *)d_dest,
+                framelength,
+                headerlength );
+}
+
+void cudaStokesI( float *d_dest, cuFloatComplex *d_src, size_t nDualPolSamples )
+{
+    cudaStokesI_kernel<<<nDualPolSamples/1024, 1024>>>( d_src, d_dest );
+}
+
 void cudaRotatePoints( float *d_points, float rad )
 {
     cudaRotatePoints_kernel<<<1,4>>>( d_points, rad );
@@ -184,14 +188,11 @@ void cudaChangeBrightness( cudaSurfaceObject_t surf, float *d_image, float amoun
     cudaCopyToSurface( surf, d_image, w, h );
 }
 
-float *cudaCreateImage( float *d_image, cudaSurfaceObject_t surf, int w, int h )
+float *cudaCreateImage( float *d_image, int w, int h )
 {
     cudaCreateImage_kernel<<<w,h>>>( d_image, w, h );
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
-
-    // Copy it to the surface (which is mapped to the OpenGL texture)
-    cudaCopyToSurface( surf, d_image, w, h );
 
     return d_image;
 }

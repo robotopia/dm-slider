@@ -23,6 +23,8 @@ struct vdif_context
     float       DM;
     size_t      nframes;
     size_t      nsamples_max_view;
+    uint32_t    npols;
+    size_t      ndual_pol_samples;
     size_t      size;       // The size of the loaded data from all channels as cuFloatComplex (d_data)
     cuFloatComplex *d_data; // An array containing cuFloatComplex data from all channels
 };
@@ -32,9 +34,10 @@ struct vdif_context
 void cudaRotatePoints( float *points, float rad );
 void cudaCopyToSurface( cudaSurfaceObject_t surf, float *d_image, int w, int h );
 void cudaChangeBrightness( cudaSurfaceObject_t surf, float *d_image, float amount, int w, int h );
-void cudaCreateImage( float *d_image, cudaSurfaceObject_t surf, int w, int h );
+void cudaCreateImage( float *d_image, int w, int h );
 
 void cudaVDIFToFloatComplex( void *d_dest, void *d_src, size_t framelength, size_t headerlength, size_t nsamples );
+void cudaStokesI( float *d_dest, cuFloatComplex *d_src, size_t nDualPolSamples );
 
 // Defined in vdif.c:
 
