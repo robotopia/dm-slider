@@ -38,6 +38,9 @@ static int drag_mode;
 static float windowWidth;
 static float windowHeight;
 
+GtkAllocation *alloc;
+static float glAreaWidth;
+
 #define XNORM(xpos)  ( (xpos)/windowWidth - 0.5)
 #define YNORM(ypos)  (-(ypos)/windowHeight + 0.5)
 
@@ -56,6 +59,8 @@ struct opengl_data_t
     GLuint shader_program;
     GLint dynamicRangeLoc;
     GLint tRangeLoc;
+    GLint tMaxLoc;
+    float tMax;
 };
 
 struct opengl_data_t opengl_data;
@@ -104,7 +109,9 @@ void mouse_button_callback( GtkWidget *widget, GdkEventButton *event, gpointer d
     if (!widget)
         return;
 
-    size_t size;
+    gtk_widget_get_allocation( widget, alloc );
+    glAreaWidth = alloc->width;
+
     switch (event->button)
     {
         case 1: // Left mouse button
@@ -133,16 +140,14 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
     if (drag_mode == DRAG_LEFT)
     {
         double xpos = event->x;
-        double ypos = event->y;
 
-        float dx = XNORM(xpos) - XNORM(xprev);
+        float dx = ((xpos - xprev)/glAreaWidth)*(tRange[1] - tRange[0]);
 
         tRange[0] -= dx;
         tRange[1] -= dx;
         glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
 
         xprev = xpos;
-        yprev = ypos;
     }
     else if (drag_mode == DRAG_RIGHT)
     {
@@ -158,6 +163,39 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
         xprev = xpos;
         yprev = ypos;
     }
+}
+
+static gboolean mouse_scroll_callback( GtkWidget *widget, GdkEventScroll *event, gpointer data )
+{
+    if (!data) { }
+    if (!widget)
+        return false;
+
+    gtk_widget_get_allocation( widget, alloc );
+    glAreaWidth = alloc->width;
+
+    // Convert to "world" coordinates
+    double xpos = event->x/glAreaWidth*(tRange[1] - tRange[0]) + tRange[0];
+
+    float scale_factor;
+    if (event->direction == GDK_SCROLL_UP)
+    {
+        scale_factor = 0.2;
+        tRange[0] += scale_factor*(xpos - tRange[0]);
+        tRange[1] -= scale_factor*(tRange[1] - xpos);
+    }
+    else if (event->direction == GDK_SCROLL_DOWN)
+    {
+        scale_factor = 0.25;
+        tRange[0] -= scale_factor*(xpos - tRange[0]);
+        tRange[1] += scale_factor*(tRange[1] - xpos);
+    }
+    else
+        return false;
+
+    glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
+
+    return true;
 }
 
 int gslist_strcmp( const void *a, const void *b )
@@ -218,6 +256,14 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         opengl_data.w = vc.ndual_pol_samples / nchans;
         opengl_data.h = nchans;
         init_texture_and_surface();
+
+        // Set the x-size of the drawing quad and the viewing area
+        float dt = 1.0/1.28e6; // THIS WILL NEED TO GO SOMEWHERE ELSE MORE SENSIBLE
+        opengl_data.tMax  = opengl_data.w*dt;
+        tRange[0] = 0.0f;
+        tRange[1] = opengl_data.tMax;
+        glProgramUniform1f( opengl_data.shader_program, opengl_data.tMaxLoc, opengl_data.tMax );
+        glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
 
         g_slist_free( filenames );
     }
@@ -380,10 +426,12 @@ static void on_glarea_realize( GtkGLArea *glarea )
     glUseProgram(opengl_data.shader_program);
 
     opengl_data.dynamicRangeLoc = glGetUniformLocation( opengl_data.shader_program, "DynamicRange" );
-    glProgramUniform2fv( opengl_data.shader_program, opengl_data.dynamicRangeLoc, 1, dynamicRange );
-
     opengl_data.tRangeLoc = glGetUniformLocation( opengl_data.shader_program, "tRange" );
+    opengl_data.tMaxLoc = glGetUniformLocation( opengl_data.shader_program, "tMax" );
+
+    glProgramUniform2fv( opengl_data.shader_program, opengl_data.dynamicRangeLoc, 1, dynamicRange );
     glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
+    glProgramUniform1f( opengl_data.shader_program, opengl_data.tMaxLoc, 1.0f );
 }
 
 int main( int argc, char *argv[] )
@@ -393,7 +441,7 @@ int main( int argc, char *argv[] )
     GtkWidget *settings_box;
     GtkWidget *button;
     GtkWidget *glarea;
-    GtkWidget *glColorbar;
+    //GtkWidget *glColorbar;
 
     GtkWidget *menubar;
     GtkWidget *menu;
@@ -421,7 +469,7 @@ int main( int argc, char *argv[] )
     vbox         = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
     settings_box = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
     glarea       = gtk_gl_area_new();
-    glColorbar   = gtk_gl_area_new();
+    //glColorbar   = gtk_gl_area_new();
     button       = gtk_button_new_with_label( "Button" );
 
     // Add menu items
@@ -449,17 +497,21 @@ int main( int argc, char *argv[] )
     gtk_box_set_child_packing( GTK_BOX(vbox), hpaned, true, true, 0, GTK_PACK_START );
 
     gtk_widget_set_size_request( glarea, windowWidth - 300, -1 );
+    alloc = g_new( GtkAllocation, 1 );
 
     gtk_widget_set_events( glarea,
-            GDK_BUTTON_PRESS_MASK |
+           GDK_BUTTON_PRESS_MASK |
             GDK_BUTTON_RELEASE_MASK |
-            GDK_BUTTON_MOTION_MASK );
+            GDK_BUTTON_MOTION_MASK |
+            GDK_SCROLL_MASK );
     g_signal_connect( G_OBJECT(glarea), "button-press-event",
             G_CALLBACK(mouse_button_callback), NULL );
     g_signal_connect( G_OBJECT(glarea), "button-release-event",
             G_CALLBACK(mouse_release_callback), NULL );
     g_signal_connect( G_OBJECT(glarea), "motion-notify-event",
             G_CALLBACK(cursor_position_callback), NULL );
+    g_signal_connect( G_OBJECT(glarea), "scroll-event",
+            G_CALLBACK(mouse_scroll_callback), NULL );
     g_signal_connect( G_OBJECT(glarea), "render",
             G_CALLBACK(render), NULL );
     g_signal_connect( G_OBJECT(glarea), "realize",
