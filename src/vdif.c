@@ -19,6 +19,8 @@ void init_vdif_context( struct vdif_context *vc, size_t nframes, size_t nsamples
     vc->DM                  = 0.0;
     vc->nframes             = nframes;
     vc->nsamples_max_view   = nsamples_max_view;
+    vc->size                = 0;
+    vc->d_data              = NULL;
 }
 
 inline void init_vdif_file( struct vdif_file *vf )
@@ -47,6 +49,54 @@ void add_vdif_file_to_context( void *ptr1, void *ptr2 )
 void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
 {
     g_slist_foreach( filenames, add_vdif_file_to_context, vc );
+
+    // Only after they're all loaded, allocate a GPU array which will house
+    // all the VDIF data (i.e. from all the channels) in cuComplex form.
+
+    // Remove any previous allocation, if any
+    gpuErrchk( cudaFree( vc->d_data ) );
+
+    // Check that all channels have the same framelength
+    bool all_same = true;
+    struct vdif_file *vf = (struct vdif_file *)vc->channels->data; // The first channel
+    uint32_t framelength = vf->framelength; // The reference framelength
+    GSList *i;
+    for (i = vc->channels; i != NULL; i = i->next)
+    {
+        vf = (struct vdif_file *)i->data;
+        if (vf->framelength != framelength)
+        {
+            all_same = false;
+            break;
+        }
+    }
+
+    if (!all_same)
+    {
+        fprintf( stderr, "WARNING: the selected VDIF files have different "
+                "framelengths. Complex data array not initialised\n" );
+        return;
+    }
+
+    // Allocate memory
+    unsigned int nchans = g_slist_length( vc->channels );
+    size_t size_per_chan    = vc->nframes * (framelength - VDIF_HEADER_BYTES) * (sizeof(float)/sizeof(char));
+    size_t samples_per_chan = vc->nframes * (framelength - VDIF_HEADER_BYTES) / 4; // 4 = npols(2) * ncmplx(2)
+    vc->size = nchans * size_per_chan;
+    printf( "%lu\n", vc->size );
+    gpuErrchk( cudaMalloc( (void **)&vc->d_data, vc->size ) );
+
+    // Run the kernels to convert from VDIF bytes to cuFloatComplex
+    char *d_dest = (char *)vc->d_data; // Typecast to char so that pointer arithmetic is easier
+    for (i = vc->channels; i != NULL; i = i->next)
+    {
+        vf = (struct vdif_file *)i->data;
+
+        cudaVDIFToFloatComplex( d_dest, vf->d_data, framelength, VDIF_HEADER_BYTES, samples_per_chan );
+
+        d_dest += size_per_chan;
+    }
+    gpuErrchk( cudaDeviceSynchronize() );
 }
 
 void load_vdif( struct vdif_file *vf, char *hdrfile, size_t nframes )

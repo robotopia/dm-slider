@@ -46,6 +46,15 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *in, cuFloatComplex *out, i
     out[out_idx] = make_cuFloatComplex( (float)sample.x - 128.0, sample.y - 128.0 );
 }
 
+void cudaVDIFToFloatComplex( void *d_dest, void *d_src, size_t framelength, size_t headerlength, size_t nsamples )
+{
+    cudaVDIFToFloatComplex_kernel<<<nsamples/1024, 1024>>>(
+                (char2 *)d_src,
+                (cuFloatComplex *)d_dest,
+                framelength,
+                headerlength );
+}
+
 /**
  * Apply a phase ramp to complex data
  *
@@ -175,11 +184,8 @@ void cudaChangeBrightness( cudaSurfaceObject_t surf, float *d_image, float amoun
     cudaCopyToSurface( surf, d_image, w, h );
 }
 
-float *cudaCreateImage( cudaSurfaceObject_t surf, int w, int h )
+float *cudaCreateImage( float *d_image, cudaSurfaceObject_t surf, int w, int h )
 {
-    float *d_image;
-    gpuErrchk( cudaMalloc( (void **)&d_image, w*h*sizeof(float) ) );
-
     cudaCreateImage_kernel<<<w,h>>>( d_image, w, h );
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );

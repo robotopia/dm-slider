@@ -278,6 +278,39 @@ static gboolean render( GtkGLArea *glarea, GdkGLContext *context, gpointer data 
     return true;
 }
 
+void init_texture_and_surface()
+{
+    gpuErrchk( cudaDestroySurfaceObject( opengl_data.surf ) );
+    gpuErrchk( cudaFreeArray( opengl_data.cuArray ) );
+
+    glBindTexture( GL_TEXTURE_2D, opengl_data.tex );
+
+    glTexImage2D( GL_TEXTURE_2D, 0, GL_R32F, opengl_data.w, opengl_data.h, 0, GL_RED, GL_FLOAT, NULL );
+
+    glBindTexture( GL_TEXTURE_2D, 0 );
+
+    gpuErrchk(
+            cudaGraphicsGLRegisterImage(
+                &(opengl_data.cudaImageResource),
+                opengl_data.tex,
+                GL_TEXTURE_2D,
+                cudaGraphicsRegisterFlagsSurfaceLoadStore
+                )
+            );
+
+    gpuErrchk( cudaGraphicsMapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
+    gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &(opengl_data.cuArray), opengl_data.cudaImageResource, 0, 0 ) );
+
+    // CUDA Surface
+    memset( &(opengl_data.surfRes), 0, sizeof(struct cudaResourceDesc) );
+    opengl_data.surfRes.resType = cudaResourceTypeArray;
+    opengl_data.surfRes.res.array.array = opengl_data.cuArray;
+    gpuErrchk( cudaCreateSurfaceObject( &(opengl_data.surf), &(opengl_data.surfRes) ) );
+
+    gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
+
+}
+
 static void on_glarea_realize( GtkGLArea *glarea )
 {
     gtk_gl_area_make_current( GTK_GL_AREA(glarea) );
@@ -336,34 +369,15 @@ static void on_glarea_realize( GtkGLArea *glarea )
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST );
     glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST );
 
-    opengl_data.w = 200;
-    opengl_data.h = 200;
-    glTexImage2D( GL_TEXTURE_2D, 0, GL_R32F, opengl_data.w, opengl_data.h, 0, GL_RED, GL_FLOAT, NULL );
+    opengl_data.d_image = NULL;
+    opengl_data.w = 10;
+    opengl_data.h = 10;
+    init_texture_and_surface();
 
-    glBindTexture( GL_TEXTURE_2D, 0 );
-
-    gpuErrchk(
-            cudaGraphicsGLRegisterImage(
-                &(opengl_data.cudaImageResource),
-                opengl_data.tex,
-                GL_TEXTURE_2D,
-                cudaGraphicsRegisterFlagsSurfaceLoadStore
-                )
-            );
-
-    gpuErrchk( cudaGraphicsMapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
-    gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &(opengl_data.cuArray), opengl_data.cudaImageResource, 0, 0 ) );
-
-    // CUDA Surface
-    memset( &(opengl_data.surfRes), 0, sizeof(struct cudaResourceDesc) );
-    opengl_data.surfRes.resType = cudaResourceTypeArray;
-    opengl_data.surfRes.res.array.array = opengl_data.cuArray;
-    gpuErrchk( cudaCreateSurfaceObject( &(opengl_data.surf), &(opengl_data.surfRes) ) );
-
-    // Create image
-    opengl_data.d_image = cudaCreateImage( opengl_data.surf, opengl_data.w, opengl_data.h );
-
-    gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
+    // Create dummy image
+    size_t size = opengl_data.w * opengl_data.h * sizeof(float);
+    gpuErrchk( cudaMalloc( (void **)&(opengl_data.d_image), size ) );
+    cudaCreateImage( opengl_data.d_image, opengl_data.surf, opengl_data.w, opengl_data.h );
 
     // Set up shaders
 

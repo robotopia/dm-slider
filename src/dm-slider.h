@@ -23,17 +23,18 @@ struct vdif_context
     float       DM;
     size_t      nframes;
     size_t      nsamples_max_view;
+    size_t      size;       // The size of the loaded data from all channels as cuFloatComplex (d_data)
+    cuFloatComplex *d_data; // An array containing cuFloatComplex data from all channels
 };
 
 // Defined in cohdd.cu:
 
 void cudaRotatePoints( float *points, float rad );
-
 void cudaCopyToSurface( cudaSurfaceObject_t surf, float *d_image, int w, int h );
-
 void cudaChangeBrightness( cudaSurfaceObject_t surf, float *d_image, float amount, int w, int h );
+void cudaCreateImage( float *d_image, cudaSurfaceObject_t surf, int w, int h );
 
-float *cudaCreateImage( cudaSurfaceObject_t surf, int w, int h );
+void cudaVDIFToFloatComplex( void *d_dest, void *d_src, size_t framelength, size_t headerlength, size_t nsamples );
 
 // Defined in vdif.c:
 
