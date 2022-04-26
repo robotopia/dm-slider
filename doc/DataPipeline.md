@@ -7,12 +7,13 @@
 | **START** | VDIF =<br>complex unsigned char,<br>dual polarisation,<br>in "frames" | cudaMemcpy() | 125 MB (GPU)<br>(3 seconds, 24 coarse channels) |
 | Strip frame headers &<br>Promote to cuFloatComplex | cuFloatComplex,<br>dual polarisation | `cudaVDIFToFloatComplex()` | 500 MB |
 | Fourier transform | cuFloatComplex,<br>dual polarisation | `cuFFT` | 500 MB |
-| Coherently dedisperse<br>each channel | Unchanged |  | 500 MB |
-| Remove interchannel<br>dispersion delays | Unchanged |  | 500 MB |
+| Coherently dedisperse<br>each channel | cuFloatComplex,<br>dual polarisation |  | 500 MB |
+| Remove interchannel<br>dispersion delays | cuFloatComplex,<br>dual polarisation |  | 500 MB |
 | Inverse Fourier transform | cuFloatComplex,<br>dual polarisation | `cuFFT` | 500 MB |
-| Detection (I,Q,U,V) | cuFloatComplex | cudaStokesI() | 250 MB |
-| Copy to CUDA Surface | Unchanged | cudaCopyToSurface() |  |
-| Map to OpenGL Texture | Unchanged | CUDA-OpenGL interoperability |  |
+| Detection (I,Q,U,V) | float | cudaStokesI() | 250 MB |
+| Binning | float |  |  |
+| Copy to CUDA Surface | float | cudaCopyToSurface() |  |
+| Map to OpenGL Texture | float | CUDA-OpenGL interoperability |  |
 | Draw on quad (via shaders) |  |  |  |
 
 In general, the data volume is too big for *all* the data to process at once.
