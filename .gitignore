@@ -10,6 +10,6 @@ doc/html
 Doxyfile.bak
 
 # Executables
-SlideBuffer_tests
-VDIFBuffer_tests
 dm-slider
+
+.vscode

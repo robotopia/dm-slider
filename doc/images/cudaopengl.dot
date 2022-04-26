@@ -1,0 +1,8 @@
+digraph cudaopengl
+{
+    rankdir="LR";
+    VDIF [shape="box"]
+    VDIF -> CUDA -> OpenGL -> GTK
+    GTK -> OpenGL
+    GTK -> CUDA
+}
