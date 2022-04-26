@@ -2,17 +2,17 @@
 
 \dotfile cudaopengl.dot
 
-| Process | Format | CUDA kernel | Max data size |
+| Process | Format | Associated CUDA function | Size (1 second,<br>24 x 1.28 MHz channels) |
 | :------ | :----- | :---------- | :------------ |
-| **START** | VDIF =<br>complex unsigned char,<br>dual polarisation,<br>in "frames" | | 375 MB (GPU)<br>(3 seconds, 24 coarse channels) |
-| Strip frame headers &<br>Promote to cuFloatComplex | cuFloatComplex,<br>dual polarisation | `cudaVDIFToFloatComplex()` | |
-| Fourier transform | cuFloatComplex,<br>dual polarisation | `cuFFT` | |
-| Coherently dedisperse<br>each channel | Unchanged |  |  |
-| Remove interchannel<br>dispersion delays | Unchanged |  |  |
-| Inverse Fourier transform | cuFloatComplex,<br>dual polarisation | `cuFFT` | |
-| Detection (I,Q,U,V) | cuFloatComplex |  |  |
-| Copy to CUDA Surface | Unchanged |  |  |
-| Copy to OpenGL Texture | Unchanged |  |  |
+| **START** | VDIF =<br>complex unsigned char,<br>dual polarisation,<br>in "frames" | cudaMemcpy() | 125 MB (GPU)<br>(3 seconds, 24 coarse channels) |
+| Strip frame headers &<br>Promote to cuFloatComplex | cuFloatComplex,<br>dual polarisation | `cudaVDIFToFloatComplex()` | 500 MB |
+| Fourier transform | cuFloatComplex,<br>dual polarisation | `cuFFT` | 500 MB |
+| Coherently dedisperse<br>each channel | Unchanged |  | 500 MB |
+| Remove interchannel<br>dispersion delays | Unchanged |  | 500 MB |
+| Inverse Fourier transform | cuFloatComplex,<br>dual polarisation | `cuFFT` | 500 MB |
+| Detection (I,Q,U,V) | cuFloatComplex | cudaStokesI() | 250 MB |
+| Copy to CUDA Surface | Unchanged | cudaCopyToSurface() |  |
+| Map to OpenGL Texture | Unchanged | CUDA-OpenGL interoperability |  |
 | Draw on quad (via shaders) |  |  |  |
 
 In general, the data volume is too big for *all* the data to process at once.
