@@ -1,4 +1,4 @@
-# Documentation for SlideBuffer
+# Documentation for DM Slider
 
 To make the documentation,
 1. `cd` into this directory
