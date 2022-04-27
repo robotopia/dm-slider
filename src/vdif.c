@@ -90,13 +90,18 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
         return;
     }
 
-    // Allocate memory
+    // Allocate memory:
+    //   Np = Number of polarisations
+    //   Nc = Number of (frequency) channels
+    //   Ns = Number of (time) samples
     unsigned int nchans = g_slist_length( vc->channels );
-    size_t size_per_chan    = vc->nframes * (framelength - VDIF_HEADER_BYTES) * (sizeof(float)/sizeof(char));
-    vc->npols = 2;
-    size_t samples_per_chan = vc->nframes * (framelength - VDIF_HEADER_BYTES) / 2; // 2 = ncmplx
+    size_t bytes_per_chan = vc->nframes * (framelength - VDIF_HEADER_BYTES);
+    size_t NsNp = bytes_per_chan / 2; // 2 = ncmplx
+    size_t Np   = vc->Np = 2;
+    size_t Ns   = NsNp / vc->Np;
+    size_t output_size_per_chan = bytes_per_chan * (sizeof(float)/sizeof(char));
     vc->size = nchans * size_per_chan;
-    vc->ndual_pol_samples = vc->size / (sizeof(cuFloatComplex) * vc->npols);
+    vc->ndual_pol_samples = vc->size / (sizeof(cuFloatComplex) * Np);
 
     gpuErrchk( cudaMalloc( (void **)&vc->d_data,        vc->size ) );
     gpuErrchk( cudaMalloc( (void **)&vc->d_spectrum,    vc->size ) );
@@ -104,11 +109,12 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
 
     // Run the kernels to convert from VDIF bytes to cuFloatComplex
     char *d_dest = (char *)vc->d_data; // Typecast to char so that pointer arithmetic is easier
+    int c = 0;
     for (i = vc->channels; i != NULL; i = i->next)
     {
         vf = (struct vdif_file *)i->data;
 
-        cudaVDIFToFloatComplex( d_dest, vf->d_data, framelength, VDIF_HEADER_BYTES, samples_per_chan );
+        cudaVDIFToFloatComplex( d_dest, vf->d_data, framelength, VDIF_HEADER_BYTES, samples_per_chan, c++ );
 
         d_dest += size_per_chan;
     }

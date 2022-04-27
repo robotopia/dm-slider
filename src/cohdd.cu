@@ -21,15 +21,17 @@
  *                        (including the header)
  * @param headerSizeBytes The number of bytes per VDIF frame header
  *
- * Each thread will converts one complex sample (= 2 bytes of input)
+ * Each thread converts one complex sample (= 2 bytes of input)
  */
-__global__ void cudaVDIFToFloatComplex_kernel( uint8_t *in, cuFloatComplex *out, int frameSizeBytes, int headerSizeBytes )
+__global__ void cudaVDIFToFloatComplex_kernel( uint8_t *in, cuFloatComplex *out, int frameSizeBytes, int headerSizeBytes, int c )
 {
     // The size of just the data part of the frame
     int dataSizeBytes = frameSizeBytes - headerSizeBytes;
 
-    // It is assumed that in points to the first byte in a frameheader
+    // It is assumed that `in` points to the first byte in a frameheader
     int i = threadIdx.x + blockIdx.x*blockDim.x; // Index of (non-header) data sample
+    int p = i % Np; // 
+    int c = 
 
     // Express the index in terms of bytes
     int i2 = i*sizeof(uint8_t)*2;
@@ -149,15 +151,16 @@ void cudaRotatePoints_kernel( float *points, float rad )
     v     v     v
 */
 
-void cudaVDIFToFloatComplex( void *d_dest, void *d_src, size_t framelength, size_t headerlength, size_t nsamples )
+void cudaVDIFToFloatComplex( void *d_dest, void *d_src, size_t framelength, size_t headerlength, size_t NsNp, int c)
 {
-    dim3 blocks((nsamples-1)/1024+1);
+    dim3 blocks((NsNp-1)/1024+1);
     dim3 threads(1024);
     cudaVDIFToFloatComplex_kernel<<<blocks, threads>>>(
                 (uint8_t *)d_src,
                 (cuFloatComplex *)d_dest,
                 framelength,
-                headerlength );
+                headerlength,
+                c);
 }
 
 void cudaStokesI( float *d_dest, cuFloatComplex *d_src, size_t nDualPolSamples )
