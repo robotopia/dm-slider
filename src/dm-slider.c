@@ -499,7 +499,7 @@ int main( int argc, char *argv[] )
     glarea       = gtk_gl_area_new();
     //glColorbar   = gtk_gl_area_new();
     statusbar    = gtk_statusbar_new();
-    button       = gtk_button_new_with_label( "Button" );
+    button       = gtk_button_new_with_label( "Auto range" );
 
     // Add menu items
     menubar      = gtk_menu_bar_new();
@@ -526,12 +526,12 @@ int main( int argc, char *argv[] )
     gtk_container_add( GTK_CONTAINER(settings_box), dynamicRangeFrame );
     gtk_container_add( GTK_CONTAINER(dynamicRangeFrame), dynamicRangeGrid );
     gtk_grid_attach( GTK_GRID(dynamicRangeGrid), dynamicRangeLo, 0, 0, 1, 1 );
-    gtk_grid_attach( GTK_GRID(dynamicRangeGrid), dynamicRangeHi, 2, 0, 1, 1 );
-    gtk_container_add( GTK_CONTAINER(settings_box), button );
+    gtk_grid_attach( GTK_GRID(dynamicRangeGrid), dynamicRangeHi, 1, 0, 1, 1 );
+    gtk_grid_attach( GTK_GRID(dynamicRangeGrid), button, 0, 1, 2, 1 );
     gtk_box_set_child_packing( GTK_BOX(vbox), hpaned, true, true, 0, GTK_PACK_START );
 
     // Set defaults and appearance
-    gtk_widget_set_size_request( glarea, windowWidth - 300, -1 );
+    gtk_widget_set_size_request( glarea, windowWidth - 400, -1 );
     gtk_widget_set_margin_top( GTK_WIDGET(statusbar), 0 );
     gtk_widget_set_margin_bottom( GTK_WIDGET(statusbar), 0 );
     statusbar_context_id = gtk_statusbar_get_context_id( GTK_STATUSBAR(statusbar), "Cursor position" );
