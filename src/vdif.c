@@ -65,6 +65,8 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
 
     // Remove any previous allocation, if any
     gpuErrchk( cudaFree( vc->d_data ) );
+    gpuErrchk( cudaFree( vc->d_spectrum ) );
+    gpuErrchk( cudaFree( vc->d_dedispersed ) );
 
     // Check that all channels have the same framelength
     bool all_same = true;
@@ -95,7 +97,10 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
     size_t samples_per_chan = vc->nframes * (framelength - VDIF_HEADER_BYTES) / 2; // 2 = ncmplx
     vc->size = nchans * size_per_chan;
     vc->ndual_pol_samples = vc->size / (sizeof(cuFloatComplex) * vc->npols);
-    gpuErrchk( cudaMalloc( (void **)&vc->d_data, vc->size ) );
+
+    gpuErrchk( cudaMalloc( (void **)&vc->d_data,        vc->size ) );
+    gpuErrchk( cudaMalloc( (void **)&vc->d_spectrum,    vc->size ) );
+    gpuErrchk( cudaMalloc( (void **)&vc->d_dedispersed, vc->size ) );
 
     // Run the kernels to convert from VDIF bytes to cuFloatComplex
     char *d_dest = (char *)vc->d_data; // Typecast to char so that pointer arithmetic is easier
@@ -108,6 +113,8 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
         d_dest += size_per_chan;
     }
     gpuErrchk( cudaDeviceSynchronize() );
+
+    // Set up cuFFT plan
 }
 
 void load_vdif( struct vdif_file *vf, char *hdrfile, size_t nframes )
@@ -202,4 +209,7 @@ void destroy_all_vdif_files( struct vdif_context *vc )
         return;
 
     g_slist_free_full( vc->channels, free_vdif_file );
+
+    // Destroy cuFFT plan
+    // TODO
 }

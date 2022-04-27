@@ -2,18 +2,18 @@
 
 \dotfile cudaopengl.dot
 
-| Process | Format | Associated CUDA function | Size (1 second,<br>24 x 1.28 MHz channels) |
+| Process | Array format | Associated CUDA function | Size (1 second,<br>24 x 1.28 MHz channels) |
 | :------ | :----- | :---------- | :------------ |
 | **START** | VDIF =<br>complex unsigned char,<br>dual polarisation,<br>in "frames" | cudaMemcpy() | 125 MB (GPU)<br>(3 seconds, 24 coarse channels) |
-| Strip frame headers &<br>Promote to cuFloatComplex | cuFloatComplex,<br>dual polarisation | `cudaVDIFToFloatComplex()` | 500 MB |
-| Fourier transform | cuFloatComplex,<br>dual polarisation | `cuFFT` | 500 MB |
-| Coherently dedisperse<br>each channel | cuFloatComplex,<br>dual polarisation |  | 500 MB |
-| Remove interchannel<br>dispersion delays | cuFloatComplex,<br>dual polarisation |  | 500 MB |
-| Inverse Fourier transform | cuFloatComplex,<br>dual polarisation | `cuFFT` | 500 MB |
-| Detection (I,Q,U,V) | float | cudaStokesI() | 250 MB |
-| Binning | float |  |  |
-| Copy to CUDA Surface | float | cudaCopyToSurface() |  |
-| Map to OpenGL Texture | float | CUDA-OpenGL interoperability |  |
+| Strip frame headers &<br>Promote to cuFloatComplex | [Voltage dynamic spectrum](@ref arrayformats) | `cudaVDIFToFloatComplex()` | 500 MB |
+| Fourier transform | [Voltage dynamic spectrum](@ref arrayformats) | `cuFFT` | 500 MB |
+| Coherently dedisperse<br>each channel | [Voltage dynamic spectrum](@ref arrayformats) |  | 500 MB |
+| Remove interchannel<br>dispersion delays | [Voltage dynamic spectrum](@ref arrayformats) |  | 500 MB |
+| Inverse Fourier transform | [Voltage dynamic spectrum](@ref arrayformats) | `cuFFT` | 500 MB |
+| Detection (I,Q,U,V) | [Power dynamic spectrum](@ref arrayformats) | cudaStokesI()<br>cudaStokesQ()<br>cudaStokesU()<br>cudaStokesV() | 250 MB |
+| Binning | [Power dynamic spectrum](@ref arrayformats) |  |  |
+| Copy to CUDA Surface | [Image](@ref arrayformats) | cudaCopyToSurface() |  |
+| Map to OpenGL Texture | [Image](@ref arrayformats) | CUDA-OpenGL interoperability |  |
 | Draw on quad (via shaders) |  |  |  |
 
 In general, the data volume is too big for *all* the data to process at once.
@@ -32,3 +32,12 @@ The question is, how much data should be dedispersed in one go?
 On one hand, as small a subset as necessary will ensure that the interactive dedispersion can run as smoothly as possibly.
 On the other hand, dedispersing a larger subset at once will avoid having to re-dedisperse when the data are scrolled and zoomed.
 Another limitation is the maximum allowed size for textures in OpenGL.
+
+## Array formats {#arrayformats}
+
+| Format | Dimensions (from slowest to<br>fastest changing) | Data type | Formula |
+| :----- | :----------------------------------------------- | :-------- | :-----: |
+| Voltage dynamic spectrum | Polarisation (`Np`) <br> (Frequency) channel (`Nc`) <br> (Time) sample `Ns` | `cuFloatComplex` | `p*Nc*Ns + c*Ns + s` |
+| Power dynamic spectrum | (Frequency) channel (`Nc`) <br> (Time) sample `Ns` | `float` | `c*Ns + s` |
+| Image | `width` <br> `height` | `float` | `y*width + x` |
+

@@ -1,5 +1,6 @@
 #include <cuda_runtime.h>
 #include <cuComplex.h>
+#include <cufft.h>
 #include "cudaErrorChecking.h"
 
 #include <stdlib.h>

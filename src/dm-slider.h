@@ -3,6 +3,7 @@
 
 #include <glib.h>
 #include <cuda_gl_interop.h>
+#include <cufft.h>
 
 #define DMCONST          4148.808  /* MHz² pc⁻¹ cm³ s */
 #define LIGHTSPEED  299792458.0    /* m/s */
@@ -28,12 +29,21 @@ struct vdif_context
     uint32_t    npols;
     size_t      ndual_pol_samples;
     size_t      size;       // The size of the loaded data from all channels as cuFloatComplex (d_data)
+
+    // Data buffers
     cuFloatComplex *d_data; // An array containing cuFloatComplex data from all channels
+    cuFloatComplex *d_spectrum;
+    cuFloatComplex *d_dedispersed;
+
+    // Global frequency metadata
     float       ref_freq_MHz;
     float       lo_freq_MHz;
     float       ctr_freq_MHz;
     float       hi_freq_MHz;
     float       bw_MHz;
+
+    // cuFFT-related bookkeeping
+    cufftHandle     plan;
 };
 
 // Defined in cohdd.cu:
