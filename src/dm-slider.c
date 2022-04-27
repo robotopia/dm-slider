@@ -40,9 +40,10 @@ static float windowHeight;
 
 GtkAllocation *alloc;
 static float glAreaWidth;
+static float glAreaHeight;
 
-#define XNORM(xpos)  ( (xpos)/windowWidth - 0.5)
-#define YNORM(ypos)  (-(ypos)/windowHeight + 0.5)
+#define XCOORD(xmousepos)  (xmousepos/glAreaWidth*(tRange[1] - tRange[0]) + tRange[0])
+#define YCOORD(ymousepos)  (ymousepos/glAreaHeight*(fRange[1] - fRange[0]) + fRange[0])
 
 struct opengl_data_t
 {
@@ -67,6 +68,7 @@ struct opengl_data_t opengl_data;
 
 float dynamicRange[] = { -1.0e-2, 1.0e-2 };
 float tRange[] = { 0.0f, 1.0f };
+float fRange[] = { 0.0f, 1.0f };
 
 void init_texture_and_surface();
 
@@ -111,6 +113,7 @@ void mouse_button_callback( GtkWidget *widget, GdkEventButton *event, gpointer d
 
     gtk_widget_get_allocation( widget, alloc );
     glAreaWidth = alloc->width;
+    glAreaHeight = alloc->height;
 
     switch (event->button)
     {
@@ -141,7 +144,7 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
     {
         double xpos = event->x;
 
-        float dx = ((xpos - xprev)/glAreaWidth)*(tRange[1] - tRange[0]);
+        float dx = XCOORD(xpos) - XCOORD(xprev);
 
         tRange[0] -= dx;
         tRange[1] -= dx;
@@ -154,7 +157,7 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
         double xpos = event->x;
         double ypos = event->y;
 
-        float dy = YNORM(ypos) - YNORM(yprev);
+        float dy = YCOORD(ypos) - YCOORD(yprev);
 
         dynamicRange[0] += dy;
         dynamicRange[1] += dy;
@@ -173,9 +176,10 @@ static gboolean mouse_scroll_callback( GtkWidget *widget, GdkEventScroll *event,
 
     gtk_widget_get_allocation( widget, alloc );
     glAreaWidth = alloc->width;
+    glAreaHeight = alloc->height;
 
     // Convert to "world" coordinates
-    double xpos = event->x/glAreaWidth*(tRange[1] - tRange[0]) + tRange[0];
+    double xpos = XCOORD(event->x);
 
     float scale_factor;
     if (event->direction == GDK_SCROLL_UP)
@@ -439,6 +443,10 @@ int main( int argc, char *argv[] )
     GtkWidget *hpaned;
     GtkWidget *vbox;
     GtkWidget *settings_box;
+    GtkWidget *dynamicRangeFrame;
+    GtkWidget *dynamicRangeGrid;
+    GtkWidget *dynamicRangeLo;
+    GtkWidget *dynamicRangeHi;
     GtkWidget *button;
     GtkWidget *glarea;
     //GtkWidget *glColorbar;
@@ -468,6 +476,10 @@ int main( int argc, char *argv[] )
     hpaned       = gtk_paned_new( GTK_ORIENTATION_HORIZONTAL );
     vbox         = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
     settings_box = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+    dynamicRangeFrame = gtk_frame_new( "Dynamic range" );
+    dynamicRangeGrid  = gtk_grid_new();
+    dynamicRangeLo    = gtk_entry_new();
+    dynamicRangeHi    = gtk_entry_new();
     glarea       = gtk_gl_area_new();
     //glColorbar   = gtk_gl_area_new();
     button       = gtk_button_new_with_label( "Button" );
@@ -493,12 +505,23 @@ int main( int argc, char *argv[] )
     gtk_container_add( GTK_CONTAINER(vbox), hpaned );
     gtk_paned_pack1( GTK_PANED(hpaned), glarea, true, true );
     gtk_paned_pack2( GTK_PANED(hpaned), settings_box, true, true );
+    gtk_container_add( GTK_CONTAINER(settings_box), dynamicRangeFrame );
+    gtk_container_add( GTK_CONTAINER(dynamicRangeFrame), dynamicRangeGrid );
+    gtk_grid_attach( GTK_GRID(dynamicRangeGrid), dynamicRangeLo, 0, 0, 1, 1 );
+    gtk_grid_attach( GTK_GRID(dynamicRangeGrid), dynamicRangeHi, 2, 0, 1, 1 );
     gtk_container_add( GTK_CONTAINER(settings_box), button );
     gtk_box_set_child_packing( GTK_BOX(vbox), hpaned, true, true, 0, GTK_PACK_START );
 
+    // Set defaults and appearance
     gtk_widget_set_size_request( glarea, windowWidth - 300, -1 );
     alloc = g_new( GtkAllocation, 1 );
+    char dynamicRangeLoStr[32];
+    char dynamicRangeHiStr[32];
+    //sprintf( dynamicRangeLoStr
+    gtk_entry_set_text( GTK_ENTRY(dynamicRangeLo), gcvt( dynamicRange[0], 3, dynamicRangeLoStr ) );
+    gtk_entry_set_text( GTK_ENTRY(dynamicRangeHi), gcvt( dynamicRange[1], 3, dynamicRangeHiStr ) );
 
+    // Set events
     gtk_widget_set_events( glarea,
            GDK_BUTTON_PRESS_MASK |
             GDK_BUTTON_RELEASE_MASK |
