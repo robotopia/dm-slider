@@ -30,6 +30,7 @@ __global__ void cudaVDIFToFloatComplex_kernel( uint8_t *in, cuFloatComplex *out,
 
     // It is assumed that `in` points to the first byte in a frameheader
     int i = threadIdx.x + blockIdx.x*blockDim.x; // Index of (non-header) data sample
+    int NsNp
     int p = i % Np; // 
     int c = 
 
