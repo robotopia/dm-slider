@@ -22,6 +22,28 @@
 
 // The app window
 GtkWidget *window;
+GtkWidget *hpaned;
+GtkWidget *vbox;
+GtkWidget *settings_box;
+GtkWidget *dynamicRangeFrame;
+GtkWidget *dynamicRangeGrid;
+GtkWidget *dynamicRangeLo;
+GtkWidget *dynamicRangeHi;
+GtkWidget *button;
+GtkWidget *glarea;
+//GtkWidget *glColorbar;
+GtkWidget *statusbar;
+guint statusbar_context_id;
+
+GtkWidget *menubar;
+GtkWidget *menu;
+GtkWidget *menuitemFile;
+GtkWidget *menuitemOpen;
+GtkWidget *menuitemQuit;
+GtkWidget *separator;
+
+GtkAccelGroup *accel_group;
+
 
 // the VDIF context
 struct vdif_context vc;
@@ -43,7 +65,7 @@ static float glAreaWidth;
 static float glAreaHeight;
 
 #define XCOORD(xmousepos)  (xmousepos/glAreaWidth*(tRange[1] - tRange[0]) + tRange[0])
-#define YCOORD(ymousepos)  (ymousepos/glAreaHeight*(fRange[1] - fRange[0]) + fRange[0])
+#define YCOORD(ymousepos)  ((1.0 - ymousepos/glAreaHeight)*(vc.hi_freq_MHz - vc.lo_freq_MHz) + vc.lo_freq_MHz)
 
 struct opengl_data_t
 {
@@ -68,9 +90,18 @@ struct opengl_data_t opengl_data;
 
 float dynamicRange[] = { -1.0e-2, 1.0e-2 };
 float tRange[] = { 0.0f, 1.0f };
-float fRange[] = { 0.0f, 1.0f };
 
 void init_texture_and_surface();
+
+void set_dynamic_range( float lo, float hi )
+{
+    dynamicRange[0] = lo;
+    dynamicRange[1] = hi;
+    glProgramUniform2fv( opengl_data.shader_program, opengl_data.dynamicRangeLoc, 1, dynamicRange );
+    char loStr[32], hiStr[32];
+    gtk_entry_set_text( GTK_ENTRY(dynamicRangeLo), gcvt( dynamicRange[0], 4, loStr ) );
+    gtk_entry_set_text( GTK_ENTRY(dynamicRangeHi), gcvt( dynamicRange[1], 4, hiStr ) );
+}
 
 void draw()
 {
@@ -140,32 +171,35 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
     if (!widget)
         return;
 
+    double xcoord = XCOORD(event->x);
+    double ycoord = YCOORD(event->y);
+
     if (drag_mode == DRAG_LEFT)
     {
-        double xpos = event->x;
-
-        float dx = XCOORD(xpos) - XCOORD(xprev);
+        float dx = xcoord - XCOORD(xprev);
 
         tRange[0] -= dx;
         tRange[1] -= dx;
         glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
 
-        xprev = xpos;
+        xprev = event->x;
     }
     else if (drag_mode == DRAG_RIGHT)
     {
-        double xpos = event->x;
-        double ypos = event->y;
 
-        float dy = YCOORD(ypos) - YCOORD(yprev);
+        float dy = ycoord - YCOORD(yprev);
 
-        dynamicRange[0] += dy;
-        dynamicRange[1] += dy;
-        glProgramUniform2fv( opengl_data.shader_program, opengl_data.dynamicRangeLoc, 1, dynamicRange );
+        set_dynamic_range( dynamicRange[0] + dy, dynamicRange[1] + dy );
 
-        xprev = xpos;
-        yprev = ypos;
+        xprev = event->x;
+        yprev = event->y;
     }
+
+    // Update the status bar with the cursor's position in world coordinates
+    gtk_statusbar_pop( GTK_STATUSBAR(statusbar), statusbar_context_id );
+    char loc[32];
+    sprintf( loc, "[%.3f, %.3f]", xcoord, ycoord );
+    gtk_statusbar_push( GTK_STATUSBAR(statusbar), statusbar_context_id, loc );
 }
 
 static gboolean mouse_scroll_callback( GtkWidget *widget, GdkEventScroll *event, gpointer data )
@@ -207,6 +241,17 @@ int gslist_strcmp( const void *a, const void *b )
     return strcmp( (char *)a, (char *)b );
 }
 
+static void update_dynamic_range_callback( GtkEntry *entry, gpointer data )
+{
+    if (!data) { }
+    if (!entry)
+        return;
+
+    set_dynamic_range(
+            atof( gtk_entry_get_text( GTK_ENTRY(dynamicRangeLo) ) ),
+            atof( gtk_entry_get_text( GTK_ENTRY(dynamicRangeHi) ) ) );
+}
+
 static gboolean open_file_callback( GtkWidget *widget, gpointer data )
 {
     if (!data) { }
@@ -241,14 +286,6 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         // Load VDIFs
         init_vdif_context( &vc, 100, 1024 );
         add_vdif_files_to_context( &vc, filenames );
-
-        GSList *iter;
-        struct vdif_file *vf;
-        for (iter = vc.channels; iter != NULL; iter = iter->next)
-        {
-            vf = (struct vdif_file *)iter->data;
-            printf( "%s:\n\t%f MHz\n\t%s\n", vf->hdrfile, vf->ctr_freq_MHz, vf->datafile );
-        }
 
         // Allocate memory in d_image and use it to store Stokes I data
         gpuErrchk( cudaFree( opengl_data.d_image ) );
@@ -339,7 +376,6 @@ void init_texture_and_surface()
     opengl_data.surfRes.res.array.array = opengl_data.cuArray;
     gpuErrchk( cudaCreateSurfaceObject( &(opengl_data.surf), &(opengl_data.surfRes) ) );
 
-    fprintf( stderr, "w, h = %d, %d\n", opengl_data.w, opengl_data.h );
     cudaCopyToSurface( opengl_data.surf, opengl_data.d_image, opengl_data.w, opengl_data.h );
 
     gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
@@ -440,26 +476,6 @@ static void on_glarea_realize( GtkGLArea *glarea )
 
 int main( int argc, char *argv[] )
 {
-    GtkWidget *hpaned;
-    GtkWidget *vbox;
-    GtkWidget *settings_box;
-    GtkWidget *dynamicRangeFrame;
-    GtkWidget *dynamicRangeGrid;
-    GtkWidget *dynamicRangeLo;
-    GtkWidget *dynamicRangeHi;
-    GtkWidget *button;
-    GtkWidget *glarea;
-    //GtkWidget *glColorbar;
-
-    GtkWidget *menubar;
-    GtkWidget *menu;
-    GtkWidget *menuitemFile;
-    GtkWidget *menuitemOpen;
-    GtkWidget *menuitemQuit;
-    GtkWidget *separator;
-
-    GtkAccelGroup *accel_group;
-
     windowWidth = 1080;
     windowHeight = 480;
 
@@ -482,6 +498,7 @@ int main( int argc, char *argv[] )
     dynamicRangeHi    = gtk_entry_new();
     glarea       = gtk_gl_area_new();
     //glColorbar   = gtk_gl_area_new();
+    statusbar    = gtk_statusbar_new();
     button       = gtk_button_new_with_label( "Button" );
 
     // Add menu items
@@ -503,6 +520,7 @@ int main( int argc, char *argv[] )
     gtk_container_add( GTK_CONTAINER(window), vbox );
     gtk_container_add( GTK_CONTAINER(vbox), menubar );
     gtk_container_add( GTK_CONTAINER(vbox), hpaned );
+    gtk_container_add( GTK_CONTAINER(vbox), statusbar );
     gtk_paned_pack1( GTK_PANED(hpaned), glarea, true, true );
     gtk_paned_pack2( GTK_PANED(hpaned), settings_box, true, true );
     gtk_container_add( GTK_CONTAINER(settings_box), dynamicRangeFrame );
@@ -514,19 +532,18 @@ int main( int argc, char *argv[] )
 
     // Set defaults and appearance
     gtk_widget_set_size_request( glarea, windowWidth - 300, -1 );
+    gtk_widget_set_margin_top( GTK_WIDGET(statusbar), 0 );
+    gtk_widget_set_margin_bottom( GTK_WIDGET(statusbar), 0 );
+    statusbar_context_id = gtk_statusbar_get_context_id( GTK_STATUSBAR(statusbar), "Cursor position" );
     alloc = g_new( GtkAllocation, 1 );
-    char dynamicRangeLoStr[32];
-    char dynamicRangeHiStr[32];
-    //sprintf( dynamicRangeLoStr
-    gtk_entry_set_text( GTK_ENTRY(dynamicRangeLo), gcvt( dynamicRange[0], 3, dynamicRangeLoStr ) );
-    gtk_entry_set_text( GTK_ENTRY(dynamicRangeHi), gcvt( dynamicRange[1], 3, dynamicRangeHiStr ) );
 
     // Set events
     gtk_widget_set_events( glarea,
            GDK_BUTTON_PRESS_MASK |
             GDK_BUTTON_RELEASE_MASK |
             GDK_BUTTON_MOTION_MASK |
-            GDK_SCROLL_MASK );
+            GDK_SCROLL_MASK |
+            GDK_POINTER_MOTION_MASK );
     g_signal_connect( G_OBJECT(glarea), "button-press-event",
             G_CALLBACK(mouse_button_callback), NULL );
     g_signal_connect( G_OBJECT(glarea), "button-release-event",
@@ -539,6 +556,10 @@ int main( int argc, char *argv[] )
             G_CALLBACK(render), NULL );
     g_signal_connect( G_OBJECT(glarea), "realize",
             G_CALLBACK(on_glarea_realize), NULL );
+    g_signal_connect( G_OBJECT(dynamicRangeLo), "activate",
+            G_CALLBACK(update_dynamic_range_callback), NULL );
+    g_signal_connect( G_OBJECT(dynamicRangeHi), "activate",
+            G_CALLBACK(update_dynamic_range_callback), NULL );
 
     g_signal_connect( G_OBJECT(menuitemOpen), "activate",
             G_CALLBACK(open_file_callback), NULL );
@@ -550,6 +571,8 @@ int main( int argc, char *argv[] )
     drag_mode = false;
 
     gtk_widget_show_all( window );
+
+    set_dynamic_range( -0.01, 0.01 );
 
     gtk_main();
 

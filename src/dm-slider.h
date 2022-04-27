@@ -19,7 +19,6 @@ struct vdif_file
 struct vdif_context
 {
     GSList     *channels;
-    float       ref_freq_MHz;
     float       DM;
     size_t      nframes;
     size_t      nsamples_max_view;
@@ -27,6 +26,11 @@ struct vdif_context
     size_t      ndual_pol_samples;
     size_t      size;       // The size of the loaded data from all channels as cuFloatComplex (d_data)
     cuFloatComplex *d_data; // An array containing cuFloatComplex data from all channels
+    float       ref_freq_MHz;
+    float       lo_freq_MHz;
+    float       ctr_freq_MHz;
+    float       hi_freq_MHz;
+    float       bw_MHz;
 };
 
 // Defined in cohdd.cu:

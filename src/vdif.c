@@ -48,7 +48,17 @@ void add_vdif_file_to_context( void *ptr1, void *ptr2 )
 
 void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
 {
+    // Add each file, one at a time
     g_slist_foreach( filenames, add_vdif_file_to_context, vc );
+
+    // Pull out some of the (frequency) metadata for the whole set of channels
+    struct vdif_file *vf = (struct vdif_file *)vc->channels->data; // The first channel
+    vc->lo_freq_MHz      = vf->ctr_freq_MHz - vf->bw_MHz/2.0;
+    vf                   = (struct vdif_file *)g_slist_last( vc->channels )->data; // The last channel
+    vc->hi_freq_MHz      = vf->ctr_freq_MHz + vf->bw_MHz/2.0;
+    vc->ctr_freq_MHz     = 0.5*(vc->lo_freq_MHz + vc->hi_freq_MHz);
+    vc->bw_MHz           = vc->hi_freq_MHz - vc->lo_freq_MHz;
+    vc->ref_freq_MHz     = vc->ctr_freq_MHz;
 
     // Only after they're all loaded, allocate a GPU array which will house
     // all the VDIF data (i.e. from all the channels) in cuComplex form.
@@ -58,7 +68,7 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
 
     // Check that all channels have the same framelength
     bool all_same = true;
-    struct vdif_file *vf = (struct vdif_file *)vc->channels->data; // The first channel
+    vf = (struct vdif_file *)vc->channels->data; // The first channel
     uint32_t framelength = vf->framelength; // The reference framelength
     GSList *i;
     for (i = vc->channels; i != NULL; i = i->next)
@@ -85,7 +95,6 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
     size_t samples_per_chan = vc->nframes * (framelength - VDIF_HEADER_BYTES) / 2; // 2 = ncmplx
     vc->size = nchans * size_per_chan;
     vc->ndual_pol_samples = vc->size / (sizeof(cuFloatComplex) * vc->npols);
-    printf( "%lu\n", vc->size );
     gpuErrchk( cudaMalloc( (void **)&vc->d_data, vc->size ) );
 
     // Run the kernels to convert from VDIF bytes to cuFloatComplex
