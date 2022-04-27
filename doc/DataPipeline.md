@@ -35,9 +35,9 @@ Another limitation is the maximum allowed size for textures in OpenGL.
 
 ## Array formats {#arrayformats}
 
-| Format | Dimensions (from slowest to<br>fastest changing) | Data type | Formula |
-| :----- | :----------------------------------------------- | :-------- | :-----: |
-| Voltage dynamic spectrum | Polarisation (`Np`) <br> (Frequency) channel (`Nc`) <br> (Time) sample `Ns` | `cuFloatComplex` | `p*Nc*Ns + c*Ns + s` |
-| Power dynamic spectrum | (Frequency) channel (`Nc`) <br> (Time) sample `Ns` | `float` | `c*Ns + s` |
-| Image | `width` <br> `height` | `float` | `y*width + x` |
+| Format | Dimensions (from slowest to<br>fastest changing) | Size | Data type | Formula |
+| :----- | :----------------------------------------------- | :--: | :-------: | :-----: |
+| Voltage dynamic spectrum | Polarisation <br> (Frequency) channel <br> (Time) sample | `Np`<br>`Nc`<br>`Ns` | `cuFloatComplex` | `p*Nc*Ns + c*Ns + s` |
+| Power dynamic spectrum | (Frequency) channel <br> (Time) sample | `Nc`<br>`Ns` | `float` | `c*Ns + s` |
+| Image | Width <br> Height | `W`<br> `H` | `float` | `y*width + x` |
 
