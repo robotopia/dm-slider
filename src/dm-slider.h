@@ -4,6 +4,9 @@
 #include <glib.h>
 #include <cuda_gl_interop.h>
 
+#define DMCONST          4148.808  /* MHz² pc⁻¹ cm³ s */
+#define LIGHTSPEED  299792458.0    /* m/s */
+
 struct vdif_file
 {
     char  *hdrfile;       // The name of the header file

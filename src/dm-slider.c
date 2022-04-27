@@ -187,9 +187,11 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
     else if (drag_mode == DRAG_RIGHT)
     {
 
-        float dy = ycoord - YCOORD(yprev);
+        float dt = xcoord - XCOORD(xprev);
+        float f  = ycoord;
 
-        set_dynamic_range( dynamicRange[0] + dy, dynamicRange[1] + dy );
+        vc.DM += dt/(DMCONST*(
+                    1.0/(vc.ref_freq_MHz*vc.ref_freq_MHz) - 1.0/(f*f)));
 
         xprev = event->x;
         yprev = event->y;
@@ -197,8 +199,8 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
 
     // Update the status bar with the cursor's position in world coordinates
     gtk_statusbar_pop( GTK_STATUSBAR(statusbar), statusbar_context_id );
-    char loc[32];
-    sprintf( loc, "[%.3f, %.3f]", xcoord, ycoord );
+    char loc[64];
+    sprintf( loc, "[%.3f ms, %.3f MHz]\tDM = %.3f", xcoord*1e3, ycoord, vc.DM );
     gtk_statusbar_push( GTK_STATUSBAR(statusbar), statusbar_context_id, loc );
 }
 
