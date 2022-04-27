@@ -10,7 +10,7 @@
 | Coherently dedisperse<br>each channel | [Voltage dynamic spectrum](@ref arrayformats) |  | 500 MB |
 | Remove interchannel<br>dispersion delays | [Voltage dynamic spectrum](@ref arrayformats) |  | 500 MB |
 | Inverse Fourier transform | [Voltage dynamic spectrum](@ref arrayformats) | `cuFFT` | 500 MB |
-| Detection (I,Q,U,V) | [Power dynamic spectrum](@ref arrayformats) | cudaStokesI()<br>cudaStokesQ()<br>cudaStokesU()<br>cudaStokesV() | 250 MB |
+| Detection (I,Q,U,V) | [Power dynamic spectrum](@ref arrayformats) | cudaStokesI()<br>cudaStokesQ()<br>cudaStokesU()<br>cudaStokesV() | 125 MB |
 | Binning | [Power dynamic spectrum](@ref arrayformats) |  |  |
 | Copy to CUDA Surface | [Image](@ref arrayformats) | cudaCopyToSurface() |  |
 | Map to OpenGL Texture | [Image](@ref arrayformats) | CUDA-OpenGL interoperability |  |

@@ -15,44 +15,52 @@
 /**
  * Convert a VDIF buffer into an array of floats
  *
- * @param in              Pointer to the VDIF buffer
+ * @param in              Pointer to the input VDIF buffer
  * @param out             Pointer to the output buffer
+ *                        (format: [Voltage dynamic spectrum](@ref arrayformats))
  * @param frameSizeBytes  The number of bytes per VDIF frame
  *                        (including the header)
  * @param headerSizeBytes The number of bytes per VDIF frame header
  *
  * Each thread converts one complex sample (= 2 bytes of input)
+ * ```
+ * <<< (Ns-1)/256+1, (256, Np) >>>
+ * ```
  */
-__global__ void cudaVDIFToFloatComplex_kernel( uint8_t *in, cuFloatComplex *out, int frameSizeBytes, int headerSizeBytes, int c )
+__global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds, int frameSizeBytes, int headerSizeBytes, int Nc, int c )
 {
     // The size of just the data part of the frame
     int dataSizeBytes = frameSizeBytes - headerSizeBytes;
 
     // It is assumed that `in` points to the first byte in a frameheader
-    int i = threadIdx.x + blockIdx.x*blockDim.x; // Index of (non-header) data sample
-    int NsNp
-    int p = i % Np; // 
-    int c = 
+    int s = threadIdx.x + blockIdx.x*blockDim.x; // Index of (non-header) data sample
+    int p = threadIdx.y;
 
-    // Express the index in terms of bytes
-    int i2 = i*sizeof(uint8_t)*2;
+    int Ns = gridDim.x*blockDim.x;
+    int Np = blockDim.y;
+
+    // The input index (not counting frameheaders)
+    int i = s*Np + p; // 2 bytes per sample
 
     // Get the frame number for this byte, and the idx within this frame
-    int frame      = i2 / dataSizeBytes;
-    int idxInFrame = i2 % dataSizeBytes;
+    int frame      = i / dataSizeBytes;
+    int idxInFrame = i % dataSizeBytes;
 
     // Calculate the indices into the input and output arrays for this sample
-    int in_idx  = frame*frameSizeBytes + (headerSizeBytes + idxInFrame);
-    int out_idx = i;
+    int vdif_idx = frame*frameSizeBytes + (headerSizeBytes + idxInFrame);
+    int vds_idx  = p*Nc*Ns + c*Ns + s;
 
     // Bring the sample to register memory
-    uint8_t sample_x = in[in_idx];
-    uint8_t sample_y = in[in_idx+1];
+    char2 v = vdif[vdif_idx];
 
-    // Turn it into a float and write it to global memory
-    out[out_idx] = make_cuFloatComplex(
-            ((float)sample_x)/256.0f - 0.5f,
-            ((float)sample_y)/256.0f - 0.5f );
+    // Interpret each byte as an unsigned int
+    uint8_t vx = *(uint8_t *)(&v.x);
+    uint8_t vy = *(uint8_t *)(&v.y);
+
+    // Turn them into floats and write it to global memory
+    vds[vds_idx] = make_cuFloatComplex(
+            ((float)vx)/256.0f - 0.5f,
+            ((float)vy)/256.0f - 0.5f );
 }
 
 /**
@@ -89,17 +97,17 @@ __global__ void cudaApplyPhaseRamp_kernel( cuFloatComplex *data, float radPerBin
  * from which the Stokes parameters are formed:
  *    I = |X|^2 + |Y|^2
  */
-__global__ void cudaStokesI_kernel( cuFloatComplex *data, float *stokesI )
+__global__ void cudaStokesI_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesI )
 {
     // Let i represent the output sample index
     int i = threadIdx.x + blockIdx.x*blockDim.x;
 
     // Pull out the two polarisations
-    cuFloatComplex X = data[2*i];
-    cuFloatComplex Y = data[2*i + 1];
+    cuFloatComplex x = X[i];
+    cuFloatComplex y = Y[i];
 
     // Calculate Stokes I
-    stokesI[i] = X.x*X.x + X.y*X.y + Y.x*Y.x + Y.y*Y.y;
+    stokesI[i] = x.x*x.x + x.y*x.y + y.x*y.x + y.y*y.y;
 }
 
 __global__
@@ -152,23 +160,32 @@ void cudaRotatePoints_kernel( float *points, float rad )
     v     v     v
 */
 
-void cudaVDIFToFloatComplex( void *d_dest, void *d_src, size_t framelength, size_t headerlength, size_t NsNp, int c)
+void cudaVDIFToFloatComplex( void *d_vds, void *d_vdif, size_t framelength, size_t headerlength,
+        uint32_t Np, uint32_t Nc, uint32_t Ns, uint32_t c )
 {
-    dim3 blocks((NsNp-1)/1024+1);
-    dim3 threads(1024);
+    dim3 blocks((Ns-1)/256+1);
+    dim3 threads(256, Np);
+
     cudaVDIFToFloatComplex_kernel<<<blocks, threads>>>(
-                (uint8_t *)d_src,
-                (cuFloatComplex *)d_dest,
-                framelength,
-                headerlength,
-                c);
+            (char2 *)d_vds,
+            (cuFloatComplex *)d_vdif,
+            framelength,
+            headerlength,
+            Nc, c );
+
+    gpuErrchk( cudaDeviceSynchronize() );
 }
 
-void cudaStokesI( float *d_dest, cuFloatComplex *d_src, size_t nDualPolSamples )
+void cudaStokesI( float *d_dest, cuFloatComplex *d_src, size_t NsNc )
 {
-    dim3 blocks((nDualPolSamples-1)/1024+1);
+    // Pull out the pointers to where the X and Y polarisations start
+    cuFloatComplex *d_X = d_src;
+    cuFloatComplex *d_Y = &d_src[NsNc];
+
+    dim3 blocks((NsNc-1)/1024+1);
     dim3 threads(1024);
-    cudaStokesI_kernel<<<blocks, threads>>>( d_src, d_dest );
+
+    cudaStokesI_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest );
 }
 
 void cudaRotatePoints( float *d_points, float rad )

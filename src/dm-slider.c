@@ -88,7 +88,7 @@ struct opengl_data_t
 
 struct opengl_data_t opengl_data;
 
-float dynamicRange[] = { -1.0e-2, 1.0e-2 };
+float dynamicRange[] = { -0.01f, 0.01f };
 float tRange[] = { 0.0f, 1.0f };
 
 void init_texture_and_surface();
@@ -286,18 +286,17 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         filenames = g_slist_sort( filenames, gslist_strcmp );
 
         // Load VDIFs
-        init_vdif_context( &vc, 100, 1024 );
+        init_vdif_context( &vc, 100 );
         add_vdif_files_to_context( &vc, filenames );
 
         // Allocate memory in d_image and use it to store Stokes I data
         gpuErrchk( cudaFree( opengl_data.d_image ) );
         gpuErrchk( cudaMalloc( (void **)&opengl_data.d_image, vc.size ) );
-        cudaStokesI( opengl_data.d_image, vc.d_data, vc.ndual_pol_samples );
+        cudaStokesI( opengl_data.d_image, vc.d_data, vc.Ns * vc.Nc );
 
         // Load to surface
-        int nchans = g_slist_length( vc.channels );
-        opengl_data.w = vc.ndual_pol_samples / nchans;
-        opengl_data.h = nchans;
+        opengl_data.w = vc.Ns;
+        opengl_data.h = vc.Nc;
         init_texture_and_surface();
 
         // Set the x-size of the drawing quad and the viewing area

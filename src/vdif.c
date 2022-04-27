@@ -12,13 +12,12 @@
 #include "dm-slider.h"
 #include "ascii_header.h"
 
-void init_vdif_context( struct vdif_context *vc, size_t nframes, size_t nsamples_max_view )
+void init_vdif_context( struct vdif_context *vc, size_t nframes )
 {
     vc->channels            = NULL;
     vc->ref_freq_MHz        = 0.0;
     vc->DM                  = 0.0;
     vc->nframes             = nframes;
-    vc->nsamples_max_view   = nsamples_max_view;
     vc->size                = 0;
     vc->d_data              = NULL;
 }
@@ -94,31 +93,31 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
     //   Np = Number of polarisations
     //   Nc = Number of (frequency) channels
     //   Ns = Number of (time) samples
-    unsigned int nchans = g_slist_length( vc->channels );
     size_t bytes_per_chan = vc->nframes * (framelength - VDIF_HEADER_BYTES);
     size_t NsNp = bytes_per_chan / 2; // 2 = ncmplx
-    size_t Np   = vc->Np = 2;
-    size_t Ns   = NsNp / vc->Np;
-    size_t output_size_per_chan = bytes_per_chan * (sizeof(float)/sizeof(char));
-    vc->size = nchans * size_per_chan;
-    vc->ndual_pol_samples = vc->size / (sizeof(cuFloatComplex) * Np);
+                                      //
+    vc->Np = 2;
+    vc->Ns = NsNp / vc->Np;
+    vc->Nc = g_slist_length( vc->channels );
+
+    vc->size = NsNp * vc->Nc * sizeof(cuFloatComplex);
 
     gpuErrchk( cudaMalloc( (void **)&vc->d_data,        vc->size ) );
     gpuErrchk( cudaMalloc( (void **)&vc->d_spectrum,    vc->size ) );
     gpuErrchk( cudaMalloc( (void **)&vc->d_dedispersed, vc->size ) );
 
     // Run the kernels to convert from VDIF bytes to cuFloatComplex
-    char *d_dest = (char *)vc->d_data; // Typecast to char so that pointer arithmetic is easier
-    int c = 0;
-    for (i = vc->channels; i != NULL; i = i->next)
+    i = vc->channels;
+    uint32_t c;
+    for (c = 0; c < vc->Nc; c++)
     {
         vf = (struct vdif_file *)i->data;
 
-        cudaVDIFToFloatComplex( d_dest, vf->d_data, framelength, VDIF_HEADER_BYTES, samples_per_chan, c++ );
+        cudaVDIFToFloatComplex( vc->d_data, vf->d_data, framelength, VDIF_HEADER_BYTES,
+                vc->Np, vc->Nc, vc->Ns, c );
 
-        d_dest += size_per_chan;
+        i = i->next;
     }
-    gpuErrchk( cudaDeviceSynchronize() );
 
     // Set up cuFFT plan
 }
