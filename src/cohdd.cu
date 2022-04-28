@@ -61,6 +61,7 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds,
     vds[vds_idx] = make_cuFloatComplex(
             ((float)vx)/256.0f - 0.5f,
             ((float)vy)/256.0f - 0.5f );
+printf( "(p=%d, c=%d, s=%d) (in: %d, out: %d): %u%+u*i\n", p, c, s, vdif_idx, vds_idx, vx, vy );
 }
 
 /**
