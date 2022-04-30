@@ -13,8 +13,7 @@
 
 #include <cuda_gl_interop.h>
 
-#define DMCONST          4148.808  /* MHz² pc⁻¹ cm³ s */
-#define LIGHTSPEED  299792458.0    /* m/s */
+#include "cohdd.h"
 
 /**
  * Convert a VDIF buffer into an array of floats
@@ -72,11 +71,11 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds,
 /**
  * Coherently dedisperse complex voltages
  *
- * @param[in] spectrum               The spectrum before dedispersion
- * @param[out] dediserpsed_spectrum   The spectrum after dedispersions
- * @param DM                     The DM to apply (in pc/cm^3)
- * @param ctr_freq_MHz_ch0       The centre frequency of the 0th channel (MHz)
- * @param bw_MHz                 The bandwidth of each channel (MHz)
+ * @param[in] spectrum                The spectrum before dedispersion
+ * @param[out] dediserpsed_spectrum   The spectrum after dedispersion
+ * @param DM                          The DM to apply (in pc/cm^3)
+ * @param ctr_freq_MHz_ch0            The centre frequency of the 0th channel (MHz)
+ * @param bw_MHz                      The bandwidth of each channel (MHz)
  *
  * ```
  * <<< (Np, Nc, (Ns-1)/1024+1), 1024 >>>
@@ -91,6 +90,51 @@ void cudaCoherentDedispersion_kernel(
         float DM,
         float ctr_freq_MHz_ch0,
         float bw_MHz)
+{
+    //int Np = gridDim.x;                           // The number of polarisations
+    int Nc = gridDim.y;                           // The number of channels
+    int N  = gridDim.z * blockDim.x;              // The number of spectral bins
+
+    int p = blockIdx.x;                           // The (p)olarisation number
+    int c = blockIdx.y;                           // The (c)hannel number
+    int n = blockIdx.z*blockDim.x + threadIdx.x;  // The spectral bin number
+
+    float df = bw_MHz / (float)N;                 // Width of the spectral bin in MHz
+    float f0 = ctr_freq_MHz_ch0 + bw_MHz*c;       // The centre frequency of the channel (MHz)
+    float f  = (n <= N/2 ? df*n : df*(n-N));      // The freq of the spectral bin relative to f0 (MHz)
+    float F  = f0 + f;                            // The absolute freq of the spectral bin (MHz)
+    float dmphase = -2.0f*CUDART_PI_F*1.0e6*DMCONST*DM*f*f/(F*f0*f0); // The phase (rad) to be applied to the spectral bin
+    float Hr, Hi;                                 // The real and imag parts of H = exp(-2πi*dmphase)
+    sincosf( dmphase, &Hr, &Hi );
+    cuFloatComplex H = make_cuFloatComplex( Hr, Hi );
+
+    int i = p*Nc*N + c*N + n;                     // The (i)ndex into both spectrum and dedispersed_spectrum
+    dedispersed_spectrum[i] = cuCmulf( spectrum[i], H );
+}
+
+/**
+ * Apply interchannel delays
+ *
+ * @param[in,out] spectrum       The spectrum after dedispersion
+ * @param DM                     The DM to apply (in pc/cm^3)
+ * @param ctr_freq_MHz_ch0       The centre frequency of the 0th channel (MHz)
+ * @param bw_MHz                 The bandwidth of each channel (MHz)
+ * @param ref_freq_MHz           The reference frequency (MHz)
+ *
+ * ```
+ * <<< (Np, Nc, (Ns-1)/1024+1), 1024 >>>
+ * ```
+ * For now, this assumes that the channels are contiguous. Later I will consider
+ * sparse channels (will likely have to put ctr freqs in shared memory)
+ */
+__global__
+void cudaApplyInterchannelDelays_kernel(
+        cuFloatComplex *spectrum,
+        cuFloatComplex *dedispersed_spectrum,
+        float DM,
+        float ctr_freq_MHz_ch0,
+        float bw_MHz,
+        float ref_freq_MHz )
 {
     //int Np = gridDim.x;                           // The number of polarisations
     int Nc = gridDim.y;                           // The number of channels

@@ -14,6 +14,7 @@
 
 #include "dm-slider.h"
 #include "ascii_header.h"
+#include "cohdd.h"
 
 #include <gtk/gtk.h>
 
