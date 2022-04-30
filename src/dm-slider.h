@@ -36,6 +36,7 @@ struct vdif_context
     size_t          size;   // The size of the data (Np x Nc x Ns x sizeof(cuFloatComplex))
     cuFloatComplex *d_data; // An array containing cuFloatComplex data from all channels
     cuFloatComplex *d_spectrum;
+    cuFloatComplex *d_dedispersed_spectrum;
     cuFloatComplex *d_dedispersed;
 
     // Global frequency metadata
@@ -76,5 +77,7 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames );
 void forwardFFT( struct vdif_context *vc );
 void inverseFFT( struct vdif_context *vc );
 void cudaScaleFactor( cuFloatComplex *d_data, float scale, size_t npoints );
+void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum,
+        float DM, uint32_t NpNc, uint32_t Ns );
 
 #endif

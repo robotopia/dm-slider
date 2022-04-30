@@ -66,6 +66,12 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds,
 }
 
 /**
+ * Coherently dedisperse complex voltages
+ */
+//__global__
+//void cudaCoherentDedispersion_kernel( cuFloatComplex *spectrum
+
+/**
  * Apply a phase ramp to complex data
  *
  * @param data          The data to which the phase ramp is applied (in-place)
@@ -73,7 +79,8 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds,
  * @param samplesPerBin The number of contiguous samples to be rotated by the
  *                      same amount
  */
-__global__ void cudaApplyPhaseRamp_kernel( cuFloatComplex *data, float radPerBin, int samplesPerBin )
+__global__
+void cudaApplyPhaseRamp_kernel( cuFloatComplex *data, float radPerBin, int samplesPerBin )
 {
     // For this block/thread...
     int s = threadIdx.x + blockIdx.x*blockDim.x; // Get the (s)ample number
@@ -183,6 +190,13 @@ void cudaVDIFToFloatComplex( void *d_vds, void *d_vdif, size_t framelength, size
             headerlength,
             Nc, c );
 
+    gpuErrchk( cudaDeviceSynchronize() );
+}
+
+void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum,
+        float DM, uint32_t NpNc, uint32_t Ns )
+{
+    gpuErrchk( cudaMemcpy( d_dedispersed_spectrum, d_spectrum, NpNc*Ns*sizeof(cuFloatComplex), cudaMemcpyDeviceToDevice ) );
     gpuErrchk( cudaDeviceSynchronize() );
 }
 

@@ -66,6 +66,7 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
     // Remove any previous allocation, if any
     gpuErrchk( cudaFree( vc->d_data ) );
     gpuErrchk( cudaFree( vc->d_spectrum ) );
+    gpuErrchk( cudaFree( vc->d_dedispersed_spectrum ) );
     gpuErrchk( cudaFree( vc->d_dedispersed ) );
 
     // Check that all channels have the same framelength
@@ -103,9 +104,10 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
 
     vc->size = NsNp * vc->Nc * sizeof(cuFloatComplex);
 
-    gpuErrchk( cudaMalloc( (void **)&vc->d_data,        vc->size ) );
-    gpuErrchk( cudaMalloc( (void **)&vc->d_spectrum,    vc->size ) );
-    gpuErrchk( cudaMalloc( (void **)&vc->d_dedispersed, vc->size ) );
+    gpuErrchk( cudaMalloc( (void **)&vc->d_data,                 vc->size ) );
+    gpuErrchk( cudaMalloc( (void **)&vc->d_spectrum,             vc->size ) );
+    gpuErrchk( cudaMalloc( (void **)&vc->d_dedispersed_spectrum, vc->size ) );
+    gpuErrchk( cudaMalloc( (void **)&vc->d_dedispersed,          vc->size ) );
 
     // Run the kernels to convert from VDIF bytes to cuFloatComplex
     i = vc->channels;
@@ -157,7 +159,7 @@ void forwardFFT( struct vdif_context *vc )
 
 void inverseFFT( struct vdif_context *vc )
 {
-    if (cufftExecC2C( vc->plan, vc->d_spectrum, vc->d_dedispersed, CUFFT_INVERSE )
+    if (cufftExecC2C( vc->plan, vc->d_dedispersed_spectrum, vc->d_dedispersed, CUFFT_INVERSE )
             != CUFFT_SUCCESS)
     {
         fprintf( stderr, "WARNING: Could not execute (forward) cuFFT plan\n" );
