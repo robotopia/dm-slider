@@ -39,5 +39,5 @@ Another limitation is the maximum allowed size for textures in OpenGL.
 | :----- | :----------------------------------------------- | :--: | :-------: | :-----: |
 | Voltage dynamic spectrum | Polarisation <br> (Frequency) channel <br> (Time) sample | `Np`<br>`Nc`<br>`Ns` | `cuFloatComplex` | `p*Nc*Ns + c*Ns + s` |
 | Power dynamic spectrum | (Frequency) channel <br> (Time) sample | `Nc`<br>`Ns` | `float` | `c*Ns + s` |
-| Image | Width <br> Height | `W`<br> `H` | `float` | `y*width + x` |
+| Image | Width <br> Height | `W`<br> `H` | `float` | `y*W + x` |
 

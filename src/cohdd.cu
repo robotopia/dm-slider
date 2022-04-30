@@ -29,8 +29,10 @@
  */
 __global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds, int frameSizeBytes, int headerSizeBytes, int Nc, int c )
 {
-    // The size of just the data part of the frame
-    int dataSizeBytes = frameSizeBytes - headerSizeBytes;
+    // Translate everything in terms of units of char2's:
+    int frameSize  = frameSizeBytes/sizeof(char2);
+    int headerSize = headerSizeBytes/sizeof(char2);
+    int dataSize   = frameSize - headerSize;
 
     // It is assumed that `in` points to the first byte in a frameheader
     int s = threadIdx.x + blockIdx.x*blockDim.x; // Index of (non-header) data sample
@@ -43,11 +45,11 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds,
     int i = s*Np + p; // 2 bytes per sample
 
     // Get the frame number for this byte, and the idx within this frame
-    int frame      = i / dataSizeBytes;
-    int idxInFrame = i % dataSizeBytes;
+    int frame      = i / dataSize;
+    int idxInFrame = i % dataSize;
 
     // Calculate the indices into the input and output arrays for this sample
-    int vdif_idx = frame*frameSizeBytes + (headerSizeBytes + idxInFrame);
+    int vdif_idx = frame*frameSize + (headerSize + idxInFrame);
     int vds_idx  = p*Nc*Ns + c*Ns + s;
 
     // Bring the sample to register memory
@@ -61,7 +63,6 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds,
     vds[vds_idx] = make_cuFloatComplex(
             ((float)vx)/256.0f - 0.5f,
             ((float)vy)/256.0f - 0.5f );
-printf( "(p=%d, c=%d, s=%d) (in: %d, out: %d): %u%+u*i\n", p, c, s, vdif_idx, vds_idx, vx, vy );
 }
 
 /**
@@ -168,8 +169,8 @@ void cudaVDIFToFloatComplex( void *d_vds, void *d_vdif, size_t framelength, size
     dim3 threads(256, Np);
 
     cudaVDIFToFloatComplex_kernel<<<blocks, threads>>>(
-            (char2 *)d_vds,
-            (cuFloatComplex *)d_vdif,
+            (char2 *)d_vdif,
+            (cuFloatComplex *)d_vds,
             framelength,
             headerlength,
             Nc, c );
