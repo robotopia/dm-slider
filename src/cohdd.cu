@@ -1,6 +1,7 @@
 #include <cuda_runtime.h>
 #include <cuComplex.h>
 #include <cufft.h>
+#include <math_constants.h>
 #include "cudaErrorChecking.h"
 
 #include <stdlib.h>
@@ -11,6 +12,9 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <cuda_gl_interop.h>
+
+#define DMCONST          4148.808  /* MHz² pc⁻¹ cm³ s */
+#define LIGHTSPEED  299792458.0    /* m/s */
 
 /**
  * Convert a VDIF buffer into an array of floats
@@ -67,9 +71,47 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds,
 
 /**
  * Coherently dedisperse complex voltages
+ *
+ * @param[in] spectrum               The spectrum before dedispersion
+ * @param[out] dediserpsed_spectrum   The spectrum after dedispersions
+ * @param DM                     The DM to apply (in pc/cm^3)
+ * @param ctr_freq_MHz_ch0       The centre frequency of the 0th channel (MHz)
+ * @param bw_MHz                 The bandwidth of each channel (MHz)
+ *
+ * ```
+ * <<< (Np, Nc, (Ns-1)/1024+1), 1024 >>>
+ * ```
+ * For now, this assumes that the channels are contiguous. Later I will consider
+ * sparse channels (will likely have to put ctr freqs in shared memory)
  */
-//__global__
-//void cudaCoherentDedispersion_kernel( cuFloatComplex *spectrum
+__global__
+void cudaCoherentDedispersion_kernel(
+        cuFloatComplex *spectrum,
+        cuFloatComplex *dedispersed_spectrum,
+        float DM,
+        float ctr_freq_MHz_ch0,
+        float bw_MHz)
+{
+    //int Np = gridDim.x;                           // The number of polarisations
+    int Nc = gridDim.y;                           // The number of channels
+    int N  = gridDim.z * blockDim.x;              // The number of spectral bins
+
+    int p = blockIdx.x;                           // The (p)olarisation number
+    int c = blockIdx.y;                           // The (c)hannel number
+    int n = blockIdx.z*blockDim.x + threadIdx.x;  // The spectral bin number
+
+    float df = bw_MHz / (float)N;                 // Width of the spectral bin in MHz
+    float f0 = ctr_freq_MHz_ch0 + bw_MHz*c;       // The centre frequency of the channel (MHz)
+    float f  = (n <= N/2 ? df*n : df*(n-N));      // The freq of the spectral bin relative to f0 (MHz)
+    float F  = f0 + f;                            // The absolute freq of the spectral bin (MHz)
+    float dmphase = -2.0f*CUDART_PI_F*1.0e6*DMCONST*DM*f*f/(F*f0*f0); // The phase (rad) to be applied to the spectral bin
+    float Hr, Hi;                                 // The real and imag parts of H = exp(-2πi*dmphase)
+    sincosf( dmphase, &Hr, &Hi );
+    cuFloatComplex H = make_cuFloatComplex( Hr, Hi );
+
+    int i = p*Nc*N + c*N + n;                     // The (i)ndex into both spectrum and dedispersed_spectrum
+    dedispersed_spectrum[i] = cuCmulf( spectrum[i], H );
+}
 
 /**
  * Apply a phase ramp to complex data
@@ -194,9 +236,19 @@ void cudaVDIFToFloatComplex( void *d_vds, void *d_vdif, size_t framelength, size
 }
 
 void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum,
-        float DM, uint32_t NpNc, uint32_t Ns )
+        float DM, float ctr_freq_MHz_ch0, float bw_MHz, uint32_t Np, uint32_t Nc, uint32_t Ns )
 {
-    gpuErrchk( cudaMemcpy( d_dedispersed_spectrum, d_spectrum, NpNc*Ns*sizeof(cuFloatComplex), cudaMemcpyDeviceToDevice ) );
+    dim3 blocks(Np, Nc, (Ns-1)/1024+1);
+    dim3 threads(1024);
+
+    cudaCoherentDedispersion_kernel<<<blocks, threads>>>(
+            d_spectrum,
+            d_dedispersed_spectrum,
+            DM,
+            ctr_freq_MHz_ch0,
+            bw_MHz );
+
+    gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 }
 
@@ -210,6 +262,9 @@ void cudaStokesI( float *d_dest, cuFloatComplex *d_src, size_t NsNc )
     dim3 threads(1024);
 
     cudaStokesI_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest );
+
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
 }
 
 void cudaRotatePoints( float *d_points, float rad )
