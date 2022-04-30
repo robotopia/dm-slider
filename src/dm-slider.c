@@ -91,6 +91,7 @@ struct opengl_data_t opengl_data;
 float dynamicRange[] = { -0.01f, 0.01f };
 float tRange[] = { 0.0f, 1.0f };
 
+void recalcImageFromDedispersion();
 void init_texture_and_surface();
 
 void set_dynamic_range( float lo, float hi )
@@ -193,6 +194,8 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
         vc.DM += dt/(DMCONST*(
                     1.0/(vc.ref_freq_MHz*vc.ref_freq_MHz) - 1.0/(f*f)));
 
+        recalcImageFromDedispersion();
+
         xprev = event->x;
         yprev = event->y;
     }
@@ -254,6 +257,27 @@ static void update_dynamic_range_callback( GtkEntry *entry, gpointer data )
             atof( gtk_entry_get_text( GTK_ENTRY(dynamicRangeHi) ) ) );
 }
 
+void recalcImageFromDedispersion()
+{
+    struct vdif_file *vf0 = (struct vdif_file *)vc.channels->data; // The lowest channel
+    cudaCoherentDedispersion(
+            vc.d_spectrum,
+            vc.d_dedispersed_spectrum,
+            vc.DM,
+            vf0->ctr_freq_MHz,
+            vf0->bw_MHz,
+            vc.Np, vc.Nc, vc.Ns );
+    inverseFFT( &vc );
+    cudaStokesI( opengl_data.d_image, vc.d_dedispersed, vc.Ns * vc.Nc );
+
+    gpuErrchk( cudaGraphicsMapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
+    gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &(opengl_data.cuArray), opengl_data.cudaImageResource, 0, 0 ) );
+
+    cudaCopyToSurface( opengl_data.surf, opengl_data.d_image, opengl_data.w, opengl_data.h );
+
+    gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
+}
+
 static gboolean open_file_callback( GtkWidget *widget, gpointer data )
 {
     if (!data) { }
@@ -292,16 +316,8 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         // Allocate memory in d_image and use it to store Stokes I data
         gpuErrchk( cudaFree( opengl_data.d_image ) );
         gpuErrchk( cudaMalloc( (void **)&opengl_data.d_image, vc.size ) );
-        struct vdif_file *vf0 = (struct vdif_file *)vc.channels->data; // The lowest channel
-        cudaCoherentDedispersion(
-                vc.d_spectrum,
-                vc.d_dedispersed_spectrum,
-                vc.DM,
-                vf0->ctr_freq_MHz,
-                vf0->bw_MHz,
-                vc.Np, vc.Nc, vc.Ns );
-        inverseFFT( &vc );
-        cudaStokesI( opengl_data.d_image, vc.d_dedispersed, vc.Ns * vc.Nc );
+
+        recalcImageFromDedispersion();
 
         // Load to surface
         opengl_data.w = vc.Ns;
