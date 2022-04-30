@@ -292,7 +292,8 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         // Allocate memory in d_image and use it to store Stokes I data
         gpuErrchk( cudaFree( opengl_data.d_image ) );
         gpuErrchk( cudaMalloc( (void **)&opengl_data.d_image, vc.size ) );
-        cudaStokesI( opengl_data.d_image, vc.d_data, vc.Ns * vc.Nc );
+        inverseFFT( &vc );
+        cudaStokesI( opengl_data.d_image, vc.d_dedispersed, vc.Ns * vc.Nc );
 
         // Load to surface
         opengl_data.w = vc.Ns;

@@ -7,6 +7,7 @@
 
 #include <cuda_runtime.h>
 #include <cuComplex.h>
+#include <cufft.h>
 #include "cudaErrorChecking.h"
 
 #include "dm-slider.h"
@@ -120,6 +121,51 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
     }
 
     // Set up cuFFT plan
+    // Because the arrays have time as the fastest changing quantity, the plan
+    // can be a batch (1D) plan that does all channels and polarisations
+    // at once
+    int n = (int)vc->Ns;
+    if (cufftPlanMany(
+                &vc->plan,      // Where the plan, once created, resides
+                1,              // The number of dimensions
+                &n,             // The size of each transform
+                NULL,           // Input storage dimenions (NULL means use default = packed)
+                0, 0,           // Stride parameters ignored if previous parameter is NULL
+                NULL,           // Output storage dimensions (NULL means use default = packed)
+                0, 0,           // Stride parameters ignored if previous parameter is NULL
+                CUFFT_C2C,      // Transform type (C2C = complex-to-complex single precision)
+                vc->Nc * vc->Np // The batch size
+                )
+            != CUFFT_SUCCESS)
+    {
+        fprintf( stderr, "WARNING: Could not create cuFFT plan\n" );
+    }
+
+    // FFT everything straight away
+    forwardFFT( vc );
+}
+
+void forwardFFT( struct vdif_context *vc )
+{
+    if (cufftExecC2C( vc->plan, vc->d_data, vc->d_spectrum, CUFFT_FORWARD )
+            != CUFFT_SUCCESS)
+    {
+        fprintf( stderr, "WARNING: Could not execute (forward) cuFFT plan\n" );
+    }
+    gpuErrchk( cudaDeviceSynchronize() );
+}
+
+void inverseFFT( struct vdif_context *vc )
+{
+    if (cufftExecC2C( vc->plan, vc->d_spectrum, vc->d_dedispersed, CUFFT_INVERSE )
+            != CUFFT_SUCCESS)
+    {
+        fprintf( stderr, "WARNING: Could not execute (forward) cuFFT plan\n" );
+    }
+    gpuErrchk( cudaDeviceSynchronize() );
+
+    cudaScaleFactor( vc->d_dedispersed, 1.0/vc->Ns, vc->Np * vc->Nc * vc->Ns );
+    gpuErrchk( cudaDeviceSynchronize() );
 }
 
 void load_vdif( struct vdif_file *vf, char *hdrfile, size_t nframes )
@@ -216,5 +262,8 @@ void destroy_all_vdif_files( struct vdif_context *vc )
     g_slist_free_full( vc->channels, free_vdif_file );
 
     // Destroy cuFFT plan
-    // TODO
+    if (cufftDestroy( vc->plan ) != CUFFT_SUCCESS)
+    {
+        fprintf( stderr, "WARNING: could not destroy cuFFT plan\n" );
+    }
 }

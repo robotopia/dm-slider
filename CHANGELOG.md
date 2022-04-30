@@ -1,5 +1,7 @@
 # Change log
 
+Reorganised the internal (GPU) data format to make polarisation the slowst changing quantity.
+
 ## v0.4
 
 Implemented basic VDIF support (Issue #5).

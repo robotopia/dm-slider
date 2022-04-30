@@ -1,9 +1,9 @@
 CC = g++
 NVCC = nvcc
-NVCCLIBS = `pkg-config --libs gtk+-3.0 gl glu glut glew vdifio`
+NVCCLIBS = `pkg-config --libs gtk+-3.0 gl glu glut glew vdifio cufft`
 LDLIBS = $(NVCCLIBS) \
-		 `pkg-config --libs-only-l cuda cudart cufft`
-LDFLAGS = `pkg-config --libs-only-L cuda cudart cufft`
+		 `pkg-config --libs-only-l cuda cudart`
+LDFLAGS = `pkg-config --libs-only-L cuda cudart`
 NVCCFLAGS = -Xcudafe --diag_suppress=esa_on_defaulted_function_ignored
 CFLAGS = -Wall -Wextra -O2 -march=native `pkg-config --cflags cuda cufft gtk+-3.0`
 

@@ -153,6 +153,14 @@ void cudaRotatePoints_kernel( float *points, float rad )
     points[stride*i+1] = s*x + c*y;
 }
 
+__global__
+void cudaScaleFactor_kernel( cuFloatComplex *data, float scale )
+{
+    int i = blockIdx.x*blockDim.x + threadIdx.x;
+    data[i].x *= scale;
+    data[i].y *= scale;
+}
+
 /*  ^      ^     ^
     |      |     |
    DEVICE FUNCTIONS
@@ -214,3 +222,13 @@ float *cudaCreateImage( float *d_image, int w, int h )
     return d_image;
 }
 
+void cudaScaleFactor( cuFloatComplex *d_data, float scale, size_t npoints )
+{
+    dim3 blocks((npoints-1)/1024+1);
+    dim3 threads(1024);
+
+    cudaScaleFactor_kernel<<<blocks, threads>>>( d_data, scale );
+
+    gpuErrchk( cudaPeekAtLastError() );
+    gpuErrchk( cudaDeviceSynchronize() );
+}

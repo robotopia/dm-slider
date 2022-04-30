@@ -73,4 +73,8 @@ void free_vdif_file( void * );
 void add_vdif_file_to_context( void *, void * );
 void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames );
 
+void forwardFFT( struct vdif_context *vc );
+void inverseFFT( struct vdif_context *vc );
+void cudaScaleFactor( cuFloatComplex *d_data, float scale, size_t npoints );
+
 #endif
