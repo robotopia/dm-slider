@@ -60,7 +60,7 @@ void cudaCreateImage( float *d_image, int w, int h );
 void cudaVDIFToFloatComplex( void *d_vds, void *d_vdif, size_t framelength, size_t headerlength,
         uint32_t Np, uint32_t Nc, uint32_t Ns, uint32_t c );
 
-void cudaStokesI( float *d_dest, cuFloatComplex *d_src, size_t nDualPolSamples );
+void cudaStokes( float *d_dest, cuFloatComplex *d_src, size_t NsNc, char stokes );
 
 // Defined in vdif.c:
 

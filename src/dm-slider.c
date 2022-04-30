@@ -37,6 +37,8 @@ GtkWidget *statusbar;
 guint statusbar_context_id;
 GtkWidget *taperFrame;
 GtkWidget *taperComboBox;
+GtkWidget *stokesFrame;
+GtkWidget *stokesComboBox;
 
 GtkWidget *menubar;
 GtkWidget *menu;
@@ -87,6 +89,7 @@ struct opengl_data_t
     GLint tRangeLoc;
     GLint tMaxLoc;
     float tMax;
+    char stokes;
 };
 
 struct opengl_data_t opengl_data;
@@ -272,7 +275,7 @@ void recalcImageFromDedispersion()
             vc.taperType,
             vc.Np, vc.Nc, vc.Ns );
     inverseFFT( &vc );
-    cudaStokesI( opengl_data.d_image, vc.d_dedispersed, vc.Ns * vc.Nc );
+    cudaStokes( opengl_data.d_image, vc.d_dedispersed, vc.Ns * vc.Nc, opengl_data.stokes );
 
     gpuErrchk( cudaGraphicsMapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
     gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &(opengl_data.cuArray), opengl_data.cudaImageResource, 0, 0 ) );
@@ -514,6 +517,16 @@ static void taper_combo_box_callback( GtkComboBox* widget, gpointer data )
     recalcImageFromDedispersion();
 }
 
+static void stokes_combo_box_callback( GtkComboBox* widget, gpointer data )
+{
+    if (!data) { }
+    if (!widget)
+        return;
+
+    opengl_data.stokes = *gtk_combo_box_text_get_active_text( GTK_COMBO_BOX_TEXT(widget) );
+    recalcImageFromDedispersion();
+}
+
 int main( int argc, char *argv[] )
 {
     windowWidth = 1080;
@@ -541,6 +554,7 @@ int main( int argc, char *argv[] )
     statusbar    = gtk_statusbar_new();
     button       = gtk_button_new_with_label( "Auto range" );
     taperFrame   = gtk_frame_new( "Taper function" );
+    stokesFrame   = gtk_frame_new( "Stokes parameter" );
 
     // Add menu items
     menubar      = gtk_menu_bar_new();
@@ -563,6 +577,14 @@ int main( int argc, char *argv[] )
     gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(taperComboBox), NULL, "Welch window" );
     gtk_combo_box_set_active( GTK_COMBO_BOX(taperComboBox), TAPER_NONE );
 
+    // Set up the stokes parameter combo box
+    stokesComboBox  = gtk_combo_box_text_new();
+    gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(stokesComboBox), NULL, "I" );
+    gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(stokesComboBox), NULL, "Q" );
+    gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(stokesComboBox), NULL, "U" );
+    gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(stokesComboBox), NULL, "V" );
+    gtk_combo_box_set_active( GTK_COMBO_BOX(stokesComboBox), 0 );
+
     // Connect everything together
     gtk_window_add_accel_group( GTK_WINDOW(window), accel_group ); // Doesn't do anything yet
     gtk_container_add( GTK_CONTAINER(window), vbox );
@@ -571,14 +593,18 @@ int main( int argc, char *argv[] )
     gtk_container_add( GTK_CONTAINER(vbox), statusbar );
     gtk_paned_pack1( GTK_PANED(hpaned), glarea, true, true );
     gtk_paned_pack2( GTK_PANED(hpaned), settings_box, true, true );
+
     gtk_container_add( GTK_CONTAINER(settings_box), dynamicRangeFrame );
     gtk_container_add( GTK_CONTAINER(dynamicRangeFrame), dynamicRangeGrid );
+
     gtk_grid_attach( GTK_GRID(dynamicRangeGrid), dynamicRangeLo, 0, 0, 1, 1 );
     gtk_grid_attach( GTK_GRID(dynamicRangeGrid), dynamicRangeHi, 1, 0, 1, 1 );
     gtk_grid_attach( GTK_GRID(dynamicRangeGrid), button, 0, 1, 2, 1 );
     gtk_box_set_child_packing( GTK_BOX(vbox), hpaned, true, true, 0, GTK_PACK_START );
     gtk_container_add( GTK_CONTAINER(settings_box), taperFrame );
     gtk_container_add( GTK_CONTAINER(taperFrame), taperComboBox );
+    gtk_container_add( GTK_CONTAINER(settings_box), stokesFrame );
+    gtk_container_add( GTK_CONTAINER(stokesFrame), stokesComboBox );
 
     // Set defaults and appearance
     gtk_widget_set_size_request( glarea, windowWidth - 400, -1 );
@@ -619,12 +645,15 @@ int main( int argc, char *argv[] )
             G_CALLBACK(print_button_event), NULL );
     g_signal_connect( G_OBJECT(taperComboBox), "changed",
             G_CALLBACK(taper_combo_box_callback), NULL );
+    g_signal_connect( G_OBJECT(stokesComboBox), "changed",
+            G_CALLBACK(stokes_combo_box_callback), NULL );
 
     drag_mode = false;
 
     gtk_widget_show_all( window );
 
     set_dynamic_range( -0.01, 0.01 );
+    opengl_data.stokes = 'I';
 
     gtk_main();
 

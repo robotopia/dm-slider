@@ -142,6 +142,78 @@ __global__ void cudaStokesI_kernel( cuFloatComplex *X, cuFloatComplex *Y, float 
     stokesI[i] = x.x*x.x + x.y*x.y + y.x*y.x + y.y*y.y;
 }
 
+/**
+ * Convert dual polarisation data to Stokes Q
+ *
+ * @param data The data to be converted
+ * @param stokesQ The Stokes Q output
+ *
+ * `data` is expected to be an array of *pairs* of complex numbers,
+ * X,Y,X,Y,X,Y,...
+ * from which the Stokes parameters are formed:
+ *    Q = |X|^2 - |Y|^2
+ */
+__global__ void cudaStokesQ_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesQ )
+{
+    // Let i represent the output sample index
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+
+    // Pull out the two polarisations
+    cuFloatComplex x = X[i];
+    cuFloatComplex y = Y[i];
+
+    // Calculate Stokes Q
+    stokesQ[i] = x.x*x.x + x.y*x.y - y.x*y.x - y.y*y.y;
+}
+
+/**
+ * Convert dual polarisation data to Stokes U
+ *
+ * @param data The data to be converted
+ * @param stokesU The Stokes U output
+ *
+ * `data` is expected to be an array of *pairs* of complex numbers,
+ * X,Y,X,Y,X,Y,...
+ * from which the Stokes parameters are formed:
+ *    U = 2*Re[X*Y]
+ */
+__global__ void cudaStokesU_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesU )
+{
+    // Let i represent the output sample index
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+
+    // Pull out the two polarisations
+    cuFloatComplex x = X[i];
+    cuFloatComplex y = Y[i];
+
+    // Calculate Stokes U
+    stokesU[i] = 2.0*(x.x*y.x - x.y*y.y);
+}
+
+/**
+ * Convert dual polarisation data to Stokes V
+ *
+ * @param data The data to be converted
+ * @param stokesV The Stokes V output
+ *
+ * `data` is expected to be an array of *pairs* of complex numbers,
+ * X,Y,X,Y,X,Y,...
+ * from which the Stokes parameters are formed:
+ *    V = 2*Re[X*Y]
+ */
+__global__ void cudaStokesV_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesV )
+{
+    // Let i represent the output sample index
+    int i = threadIdx.x + blockIdx.x*blockDim.x;
+
+    // Pull out the two polarisations
+    cuFloatComplex x = X[i];
+    cuFloatComplex y = Y[i];
+
+    // Calculate Stokes V
+    stokesV[i] = -2.0*(x.x*y.y - x.y*y.x);
+}
+
 __global__
 void cudaCreateImage_kernel( float *image, int width, int height )
 {
@@ -235,7 +307,7 @@ void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_ded
     gpuErrchk( cudaDeviceSynchronize() );
 }
 
-void cudaStokesI( float *d_dest, cuFloatComplex *d_src, size_t NsNc )
+void cudaStokes( float *d_dest, cuFloatComplex *d_src, size_t NsNc, char stokes )
 {
     // Pull out the pointers to where the X and Y polarisations start
     cuFloatComplex *d_X = d_src;
@@ -244,7 +316,24 @@ void cudaStokesI( float *d_dest, cuFloatComplex *d_src, size_t NsNc )
     dim3 blocks((NsNc-1)/1024+1);
     dim3 threads(1024);
 
-    cudaStokesI_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest );
+    switch (stokes)
+    {
+        case 'I':
+            cudaStokesI_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest );
+            break;
+        case 'Q':
+            cudaStokesQ_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest );
+            break;
+        case 'U':
+            cudaStokesU_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest );
+            break;
+        case 'V':
+            cudaStokesV_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest );
+            break;
+        default:
+            fprintf( stderr, "WARNING: Unrecognised Stokes parameter '%c'\n", stokes );
+            break;
+    }
 
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
