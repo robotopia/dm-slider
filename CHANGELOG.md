@@ -1,5 +1,7 @@
 # Change log
 
+## v0.5
+
 - Reorganised the internal (GPU) data format to make polarisation the slowst changing quantity.
 - Implemented (basic) coherent dedispersion (Issue #9)! (Use right mouse button click and drag to change dispersion measure.)
 
