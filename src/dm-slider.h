@@ -75,6 +75,6 @@ void forwardFFT( struct vdif_context *vc );
 void inverseFFT( struct vdif_context *vc );
 void cudaScaleFactor( cuFloatComplex *d_data, float scale, size_t npoints );
 void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum,
-        float DM, float ctr_freq_MHz_ch0, float bw_MHz, uint32_t Np, uint32_t Nc, uint32_t Ns );
+        float DM, float ctr_freq_MHz_ch0, float ref_freq_MHz, float bw_MHz, uint32_t Np, uint32_t Nc, uint32_t Ns );
 
 #endif

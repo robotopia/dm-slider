@@ -192,8 +192,7 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
         float dt = xcoord - XCOORD(xprev);
         float f  = ycoord;
 
-        vc.DM += dt/(DMCONST*(
-                    1.0/(vc.ref_freq_MHz*vc.ref_freq_MHz) - 1.0/(f*f)));
+        vc.DM += calcDM( dt, vc.ref_freq_MHz, f );
 
         recalcImageFromDedispersion();
 
@@ -266,6 +265,7 @@ void recalcImageFromDedispersion()
             vc.d_dedispersed_spectrum,
             vc.DM,
             vf0->ctr_freq_MHz,
+            vc.ref_freq_MHz,
             vf0->bw_MHz,
             vc.Np, vc.Nc, vc.Ns );
     inverseFFT( &vc );
