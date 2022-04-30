@@ -267,6 +267,7 @@ void recalcImageFromDedispersion()
             vf0->ctr_freq_MHz,
             vc.ref_freq_MHz,
             vf0->bw_MHz,
+            vc.taperType,
             vc.Np, vc.Nc, vc.Ns );
     inverseFFT( &vc );
     cudaStokesI( opengl_data.d_image, vc.d_dedispersed, vc.Ns * vc.Nc );

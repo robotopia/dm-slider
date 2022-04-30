@@ -18,6 +18,7 @@ void init_vdif_context( struct vdif_context *vc, size_t nframes )
     vc->channels            = NULL;
     vc->ref_freq_MHz        = 0.0;
     vc->DM                  = 0.0;
+    vc->taperType           = TAPER_NONE;
     vc->nframes             = nframes;
     vc->size                = 0;
     vc->d_data              = NULL;

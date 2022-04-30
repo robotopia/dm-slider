@@ -91,7 +91,8 @@ void cudaCoherentDedispersion_kernel(
         float DM,
         float ctr_freq_MHz_ch0,
         float ref_freq_MHz,
-        float bw_MHz )
+        float bw_MHz,
+        int taperType )
 {
     //int Np = gridDim.x;                           // The number of polarisations
     int Nc = gridDim.y;                           // The number of channels
@@ -110,7 +111,8 @@ void cudaCoherentDedispersion_kernel(
     float icphase = f*dt;                         // The interchannel delay phase (s^-1 MHz^-1)
     float Hr, Hi;                                 // The real and imag parts of H = exp(-2πi*phase)
     sincosf( -2.0f*CUDART_PI_F*1.0e6*(dmphase + icphase), &Hr, &Hi );
-    cuFloatComplex H = make_cuFloatComplex( Hr, Hi );
+    float taper = taperFunc( f, bw_MHz, taperType ); // The taper function
+    cuFloatComplex H = make_cuFloatComplex( Hr*taper, Hi*taper );
 
     int i = p*Nc*N + c*N + n;                     // The (i)ndex into both spectrum and dedispersed_spectrum
     dedispersed_spectrum[i] = cuCmulf( spectrum[i], H );
@@ -215,7 +217,7 @@ void cudaVDIFToFloatComplex( void *d_vds, void *d_vdif, size_t framelength, size
 }
 
 void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum,
-        float DM, float ctr_freq_MHz_ch0, float ref_freq_MHz, float bw_MHz, uint32_t Np, uint32_t Nc, uint32_t Ns )
+        float DM, float ctr_freq_MHz_ch0, float ref_freq_MHz, float bw_MHz, int taperType, uint32_t Np, uint32_t Nc, uint32_t Ns )
 {
     dim3 blocks(Np, Nc, (Ns-1)/1024+1);
     dim3 threads(1024);
@@ -226,7 +228,8 @@ void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_ded
             DM,
             ctr_freq_MHz_ch0,
             ref_freq_MHz,
-            bw_MHz );
+            bw_MHz,
+            taperType );
 
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );

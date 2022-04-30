@@ -5,6 +5,8 @@
 #include <cuda_gl_interop.h>
 #include <cufft.h>
 
+#include "cohdd.h"
+
 struct vdif_file
 {
     char  *hdrfile;       // The name of the header file
@@ -22,7 +24,9 @@ struct vdif_context
     GSList     *channels;
     size_t      nVDIFFrames;
 
+    // Variables relating to dedispersion
     float       DM;
+    int         taperType;
 
     uint32_t    Ns;
     uint32_t    Np;
@@ -75,6 +79,6 @@ void forwardFFT( struct vdif_context *vc );
 void inverseFFT( struct vdif_context *vc );
 void cudaScaleFactor( cuFloatComplex *d_data, float scale, size_t npoints );
 void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum,
-        float DM, float ctr_freq_MHz_ch0, float ref_freq_MHz, float bw_MHz, uint32_t Np, uint32_t Nc, uint32_t Ns );
+        float DM, float ctr_freq_MHz_ch0, float ref_freq_MHz, float bw_MHz, int taperType, uint32_t Np, uint32_t Nc, uint32_t Ns );
 
 #endif
