@@ -25,6 +25,7 @@
 GtkWidget *window;
 GtkWidget *hpaned;
 GtkWidget *vbox;
+GtkWidget *settingsFrame;
 GtkWidget *settings_box;
 GtkWidget *dynamicRangeFrame;
 GtkWidget *dynamicRangeGrid;
@@ -544,7 +545,8 @@ int main( int argc, char *argv[] )
     accel_group  = gtk_accel_group_new ();
     hpaned       = gtk_paned_new( GTK_ORIENTATION_HORIZONTAL );
     vbox         = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
-    settings_box = gtk_box_new( GTK_ORIENTATION_VERTICAL, 5 );
+    settingsFrame = gtk_frame_new( "Settings" );
+    settings_box = gtk_box_new( GTK_ORIENTATION_VERTICAL, 10 );
     dynamicRangeFrame = gtk_frame_new( "Dynamic range" );
     dynamicRangeGrid  = gtk_grid_new();
     dynamicRangeLo    = gtk_entry_new();
@@ -592,7 +594,9 @@ int main( int argc, char *argv[] )
     gtk_container_add( GTK_CONTAINER(vbox), hpaned );
     gtk_container_add( GTK_CONTAINER(vbox), statusbar );
     gtk_paned_pack1( GTK_PANED(hpaned), glarea, true, true );
-    gtk_paned_pack2( GTK_PANED(hpaned), settings_box, true, true );
+    gtk_paned_pack2( GTK_PANED(hpaned), settingsFrame, true, true );
+    gtk_container_add( GTK_CONTAINER(settingsFrame), settings_box );
+    gtk_frame_set_label_align( GTK_FRAME(settingsFrame), 0.5, 0.5 );
 
     gtk_container_add( GTK_CONTAINER(settings_box), dynamicRangeFrame );
     gtk_container_add( GTK_CONTAINER(dynamicRangeFrame), dynamicRangeGrid );
