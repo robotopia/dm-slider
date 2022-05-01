@@ -231,11 +231,11 @@ void cudaCreateImage_kernel( float *image, int width, int height )
 }
 
 __global__
-void cudaCopyToSurface_kernel( cudaSurfaceObject_t dest, float *src, int width )
+void cudaCopyToSurface_kernel( cudaSurfaceObject_t dest, float *src )
 {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    int x = i % width;
-    int y = i / width;
+    int x = blockIdx.x;
+    int y = threadIdx.x;
+    int i = y*gridDim.x + x;
 
     surf2Dwrite( src[i], dest, x*sizeof(float), y );
 }
@@ -348,7 +348,7 @@ void cudaRotatePoints( float *d_points, float rad )
 
 void cudaCopyToSurface( cudaSurfaceObject_t surf, float *d_image, int w, int h )
 {
-    cudaCopyToSurface_kernel<<<w,h>>>( surf, d_image, w );
+    cudaCopyToSurface_kernel<<<w,h>>>( surf, d_image );
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 }
