@@ -318,7 +318,7 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         filenames = g_slist_sort( filenames, gslist_strcmp );
 
         // Load VDIFs
-        init_vdif_context( &vc, 100 );
+        init_vdif_context( &vc, 10 );
         add_vdif_files_to_context( &vc, filenames );
 
         // Allocate memory in d_image and use it to store Stokes I data
