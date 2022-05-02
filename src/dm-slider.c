@@ -51,8 +51,8 @@ GtkWidget *separator;
 GtkAccelGroup *accel_group;
 
 
-// the VDIF context
-struct vdif_context vc;
+// The voltage dynamic spectrum
+struct vds_t vds;
 
 // Mouse states
 static double xprev;
@@ -71,7 +71,7 @@ static float glAreaWidth;
 static float glAreaHeight;
 
 #define XCOORD(xmousepos)  (xmousepos/glAreaWidth*(tRange[1] - tRange[0]) + tRange[0])
-#define YCOORD(ymousepos)  ((1.0 - ymousepos/glAreaHeight)*(vc.hi_freq_MHz - vc.lo_freq_MHz) + vc.lo_freq_MHz)
+#define YCOORD(ymousepos)  ((1.0 - ymousepos/glAreaHeight)*(vds.hi_freq_MHz - vds.lo_freq_MHz) + vds.lo_freq_MHz)
 
 struct opengl_data_t
 {
@@ -198,7 +198,7 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
         float dt = xcoord - XCOORD(xprev);
         float f  = ycoord;
 
-        vc.DM += calcDM( dt, vc.ref_freq_MHz, f );
+        vds.DM += calcDM( dt, vds.ref_freq_MHz, f );
 
         recalcImageFromDedispersion();
 
@@ -209,7 +209,7 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
     // Update the status bar with the cursor's position in world coordinates
     gtk_statusbar_pop( GTK_STATUSBAR(statusbar), statusbar_context_id );
     char loc[64];
-    sprintf( loc, "[%.3f ms, %.3f MHz]\tDM = %.3f", xcoord*1e3, ycoord, vc.DM );
+    sprintf( loc, "[%.3f ms, %.3f MHz]\tDM = %.3f", xcoord*1e3, ycoord, vds.DM );
     gtk_statusbar_push( GTK_STATUSBAR(statusbar), statusbar_context_id, loc );
 }
 
@@ -265,19 +265,18 @@ static void update_dynamic_range_callback( GtkEntry *entry, gpointer data )
 
 void recalcImageFromDedispersion()
 {
-    struct vdif_file *vf0 = (struct vdif_file *)vc.channels->data; // The lowest channel
     cudaCoherentDedispersion(
-            vc.d_spectrum,
-            vc.d_dedispersed_spectrum,
-            vc.size,
-            vc.DM,
-            vf0->ctr_freq_MHz,
-            vc.ref_freq_MHz,
-            vf0->bw_MHz,
-            vc.taperType,
-            vc.Np, vc.Nc, vc.Ns );
-    inverseFFT( &vc );
-    cudaStokes( opengl_data.d_image, vc.d_dedispersed, vc.Ns * vc.Nc, opengl_data.stokes );
+            vds.d_spectrum,
+            vds.d_dedispersed_spectrum,
+            vds.size,
+            vds.DM,
+            ctr_freq_MHz_nth_channel( &vds, 0 ),
+            vds.ref_freq_MHz,
+            channel_bw_MHz( &vds ),
+            vds.taperType,
+            vds.Np, vds.Nc, vds.Ns );
+    inverseFFT( &vds );
+    cudaStokes( opengl_data.d_image, vds.d_dedispersed, vds.Ns * vds.Nc, opengl_data.stokes );
 
     gpuErrchk( cudaGraphicsMapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
     gpuErrchk( cudaGraphicsSubResourceGetMappedArray( &(opengl_data.cuArray), opengl_data.cudaImageResource, 0, 0 ) );
@@ -311,9 +310,10 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
     res = gtk_dialog_run( GTK_DIALOG(dialog) );
     if (res == GTK_RESPONSE_ACCEPT)
     {
-        // Get rid of the previous lot
-        destroy_all_vdif_files( &vc );
+        // Create a vdif context
+        struct vdif_context vc;
 
+        // Get a list of filenames
         GSList *filenames;
         filenames = gtk_file_chooser_get_filenames( chooser );
         filenames = g_slist_sort( filenames, gslist_strcmp );
@@ -322,15 +322,18 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         init_vdif_context( &vc, 100 );
         add_vdif_files_to_context( &vc, filenames );
 
+        // Convert VDIF to a voltage dynamic spectrum
+        vds_from_vdif_context( &vds, &vc );
+
         // Allocate memory in d_image and use it to store Stokes I data
         gpuErrchk( cudaFree( opengl_data.d_image ) );
-        gpuErrchk( cudaMalloc( (void **)&opengl_data.d_image, vc.size ) );
+        gpuErrchk( cudaMalloc( (void **)&opengl_data.d_image, vds.size ) );
 
         recalcImageFromDedispersion();
 
         // Load to surface
-        opengl_data.w = vc.Ns;
-        opengl_data.h = vc.Nc;
+        opengl_data.w = vds.Ns;
+        opengl_data.h = vds.Nc;
         init_texture_and_surface();
 
         // Set the x-size of the drawing quad and the viewing area
@@ -342,6 +345,9 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
 
         g_slist_free( filenames );
+
+        // Don't need the vdif context any more
+        destroy_all_vdif_files( &vc );
     }
 
     gtk_widget_destroy( dialog );
@@ -515,7 +521,7 @@ static void taper_combo_box_callback( GtkComboBox* widget, gpointer data )
     if (!widget)
         return;
 
-    vc.taperType = gtk_combo_box_get_active( GTK_COMBO_BOX(widget) );
+    vds.taperType = gtk_combo_box_get_active( GTK_COMBO_BOX(widget) );
     recalcImageFromDedispersion();
 }
 
@@ -659,6 +665,7 @@ int main( int argc, char *argv[] )
 
     set_dynamic_range( -0.01, 0.01 );
     opengl_data.stokes = 'I';
+    vds_init( &vds );
 
     gtk_main();
 
@@ -666,8 +673,6 @@ int main( int argc, char *argv[] )
     gpuErrchk( cudaDestroySurfaceObject( opengl_data.surf ) );
     gpuErrchk( cudaFreeArray( opengl_data.cuArray ) );
     gpuErrchk( cudaFree( opengl_data.d_image ) );
-
-    destroy_all_vdif_files( &vc );
 
     return EXIT_SUCCESS;
 }
