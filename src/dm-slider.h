@@ -22,8 +22,11 @@ struct vdif_file
 struct vdif_context
 {
     GSList     *channels;
-    size_t      nVDIFFrames;
+    size_t      nframes;
+};
 
+struct vds_t
+{
     // Variables relating to dedispersion
     float       DM;
     int         taperType;
@@ -31,7 +34,6 @@ struct vdif_context
     uint32_t    Ns;
     uint32_t    Np;
     uint32_t    Nc;
-    uint32_t    nframes;
 
     // Data buffers
     size_t          size;   // The size of the data (Np x Nc x Ns x sizeof(cuFloatComplex))
@@ -74,8 +76,22 @@ void free_vdif_file( void * );
 void add_vdif_file_to_context( void *, void * );
 void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames );
 
-void forwardFFT( struct vdif_context *vc );
-void inverseFFT( struct vdif_context *vc );
+
+// Defined in vds.c:
+
+void vds_init( struct vds_t *vds );
+void vds_from_vdif_context( struct vds_t *vds, struct vdif_context *vc );
+
+void forwardFFT( struct vds_t *vds );
+void inverseFFT( struct vds_t *vds );
+
+void vds_destroy( struct vds_t *vds );
+
+float channel_bw_MHz( struct vds_t *vds );
+float ctr_freq_MHz_nth_channel( struct vds_t *vds, uint32_t n );
+
+
+
 void cudaScaleFactor( cuFloatComplex *d_data, float scale, size_t npoints );
 void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum, size_t size,
         float DM, float ctr_freq_MHz_ch0, float ref_freq_MHz, float bw_MHz, int taperType, uint32_t Np, uint32_t Nc, uint32_t Ns );
