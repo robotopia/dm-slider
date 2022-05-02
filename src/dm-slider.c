@@ -417,10 +417,7 @@ void init_texture_and_surface()
     opengl_data.surfRes.res.array.array = opengl_data.cuArray;
     gpuErrchk( cudaCreateSurfaceObject( &(opengl_data.surf), &(opengl_data.surfRes) ) );
 
-    cudaCopyToSurface( opengl_data.surf, opengl_data.d_image, opengl_data.w, opengl_data.h );
-
     gpuErrchk( cudaGraphicsUnmapResources( 1, &(opengl_data.cudaImageResource), 0 ) );
-
 }
 
 static void on_glarea_realize( GtkGLArea *glarea )
@@ -473,15 +470,15 @@ static void on_glarea_realize( GtkGLArea *glarea )
     glEnableVertexAttribArray( 1 );
 
     // Set up initial texture and surface
-    opengl_data.w = 10;
-    opengl_data.h = 10;
+    opengl_data.w = vds.Ns;
+    opengl_data.h = vds.Nc;
 
-    // Create dummy image
+    // Display title image (assumed already loaded into vds)
     size_t size = opengl_data.w * opengl_data.h * sizeof(float);
     gpuErrchk( cudaMalloc( (void **)&(opengl_data.d_image), size ) );
-    cudaCreateImage( opengl_data.d_image, opengl_data.w, opengl_data.h );
 
     init_texture_and_surface();
+    recalcImageFromDedispersion();
 
     // Set up shaders
 
@@ -661,11 +658,11 @@ int main( int argc, char *argv[] )
 
     drag_mode = false;
 
-    gtk_widget_show_all( window );
-
-    set_dynamic_range( -0.01, 0.01 );
     opengl_data.stokes = 'I';
-    vds_init( &vds );
+    vds_create_title( &vds );
+
+    gtk_widget_show_all( window );
+    set_dynamic_range( 0.0, 1.0 );
 
     gtk_main();
 

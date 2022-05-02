@@ -82,6 +82,8 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames );
 void vds_init( struct vds_t *vds );
 void vds_from_vdif_context( struct vds_t *vds, struct vdif_context *vc );
 
+void vds_create_title( struct vds_t *vds );
+
 void forwardFFT( struct vds_t *vds );
 void inverseFFT( struct vds_t *vds );
 
