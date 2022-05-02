@@ -269,6 +269,7 @@ void recalcImageFromDedispersion()
     cudaCoherentDedispersion(
             vc.d_spectrum,
             vc.d_dedispersed_spectrum,
+            vc.size,
             vc.DM,
             vf0->ctr_freq_MHz,
             vc.ref_freq_MHz,
@@ -318,7 +319,7 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         filenames = g_slist_sort( filenames, gslist_strcmp );
 
         // Load VDIFs
-        init_vdif_context( &vc, 17 );
+        init_vdif_context( &vc, 100 );
         add_vdif_files_to_context( &vc, filenames );
 
         // Allocate memory in d_image and use it to store Stokes I data

@@ -53,7 +53,6 @@ struct vdif_context
 
 // Defined in cohdd.cu:
 
-void cudaRotatePoints( float *points, float rad );
 void cudaCopyToSurface( cudaSurfaceObject_t surf, float *d_image, int w, int h );
 void cudaCreateImage( float *d_image, int w, int h );
 
@@ -78,7 +77,7 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames );
 void forwardFFT( struct vdif_context *vc );
 void inverseFFT( struct vdif_context *vc );
 void cudaScaleFactor( cuFloatComplex *d_data, float scale, size_t npoints );
-void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum,
+void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum, size_t size,
         float DM, float ctr_freq_MHz_ch0, float ref_freq_MHz, float bw_MHz, int taperType, uint32_t Np, uint32_t Nc, uint32_t Ns );
 
 #endif

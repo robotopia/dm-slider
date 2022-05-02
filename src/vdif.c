@@ -104,7 +104,6 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
     vc->Nc = g_slist_length( vc->channels );
 
     vc->size = NsNp * vc->Nc * sizeof(cuFloatComplex);
-printf( "vc->size = %lu\n", vc->size );
 
     gpuErrchk( cudaMalloc( (void **)&vc->d_data,                 vc->size ) );
     gpuErrchk( cudaMalloc( (void **)&vc->d_spectrum,             vc->size ) );

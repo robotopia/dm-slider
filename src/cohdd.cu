@@ -24,13 +24,16 @@
  * @param frameSizeBytes  The number of bytes per VDIF frame
  *                        (including the header)
  * @param headerSizeBytes The number of bytes per VDIF frame header
+ * @param Nc              The number of channels
+ * @param c               The channel number
+ * @param Ns              The number of samples
  *
  * Each thread converts one complex sample (= 2 bytes of input)
  * ```
- * <<< (Ns-1)/256+1, (256, Np) >>>
+ * <<< (Ns-1)/512+1, (512, Np) >>>
  * ```
  */
-__global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds, int frameSizeBytes, int headerSizeBytes, int Nc, int c )
+__global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds, int frameSizeBytes, int headerSizeBytes, int Nc, int c, int Ns )
 {
     // Translate everything in terms of units of char2's:
     int frameSize  = frameSizeBytes/sizeof(char2);
@@ -38,11 +41,13 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds,
     int dataSize   = frameSize - headerSize;
 
     // It is assumed that `in` points to the first byte in a frameheader
-    int s = threadIdx.x + blockIdx.x*blockDim.x; // Index of (non-header) data sample
-    int p = threadIdx.y;
-
-    int Ns = gridDim.x*blockDim.x;
+    int s  = threadIdx.x + blockIdx.x*blockDim.x; // Index of (non-header) data sample
+    int p  = threadIdx.y;
     int Np = blockDim.y;
+
+    // Check for out-of-bounds
+    if (s >= Ns)
+        return;
 
     // The input index (not counting frameheaders)
     int i = s*Np + p; // 2 bytes per sample
@@ -73,6 +78,7 @@ __global__ void cudaVDIFToFloatComplex_kernel( char2 *vdif, cuFloatComplex *vds,
  *
  * @param[in] spectrum                The spectrum before dedispersion
  * @param[out] dediserpsed_spectrum   The spectrum after dedispersion
+ * @param N                           The number of spectral bins (=`Ns`)
  * @param DM                          The DM to apply (in pc/cm^3)
  * @param ctr_freq_MHz_ch0            The centre frequency of the 0th channel (MHz)
  * @param ref_freq_MHz                The reference frequency (MHz) for interchannel delays
@@ -88,6 +94,7 @@ __global__
 void cudaCoherentDedispersion_kernel(
         cuFloatComplex *spectrum,
         cuFloatComplex *dedispersed_spectrum,
+        int N,
         float DM,
         float ctr_freq_MHz_ch0,
         float ref_freq_MHz,
@@ -96,11 +103,16 @@ void cudaCoherentDedispersion_kernel(
 {
     //int Np = gridDim.x;                           // The number of polarisations
     int Nc = gridDim.y;                           // The number of channels
-    int N  = gridDim.z * blockDim.x;              // The number of spectral bins
 
     int p = blockIdx.x;                           // The (p)olarisation number
     int c = blockIdx.y;                           // The (c)hannel number
     int n = blockIdx.z*blockDim.x + threadIdx.x;  // The spectral bin number
+
+    // Check for out-of-bounds
+    if (n >= N)
+        return;
+
+    int i = p*Nc*N + c*N + n;                     // The (i)ndex into both spectrum and dedispersed_spectrum
 
     float df = bw_MHz / (float)N;                 // Width of the spectral bin in MHz
     float f0 = ctr_freq_MHz_ch0 + bw_MHz*c;       // The centre frequency of the channel (MHz)
@@ -114,25 +126,29 @@ void cudaCoherentDedispersion_kernel(
     float taper = taperFunc( f, bw_MHz, taperType ); // The taper function
     cuFloatComplex H = make_cuFloatComplex( Hr*taper, Hi*taper );
 
-    int i = p*Nc*N + c*N + n;                     // The (i)ndex into both spectrum and dedispersed_spectrum
     dedispersed_spectrum[i] = cuCmulf( spectrum[i], H );
 }
 
 /**
  * Convert dual polarisation data to Stokes I
  *
- * @param data The data to be converted
+ * @param X       The X-polarisation data
+ * @param Y       The Y-polarisation data
  * @param stokesI The Stokes I output
+ * @param N       The number of samples
  *
  * `data` is expected to be an array of *pairs* of complex numbers,
  * X,Y,X,Y,X,Y,...
  * from which the Stokes parameters are formed:
  *    I = |X|^2 + |Y|^2
  */
-__global__ void cudaStokesI_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesI )
+__global__ void cudaStokesI_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesI, int N )
 {
     // Let i represent the output sample index
     int i = threadIdx.x + blockIdx.x*blockDim.x;
+
+    if (i >= N)
+        return;
 
     // Pull out the two polarisations
     cuFloatComplex x = X[i];
@@ -145,18 +161,23 @@ __global__ void cudaStokesI_kernel( cuFloatComplex *X, cuFloatComplex *Y, float 
 /**
  * Convert dual polarisation data to Stokes Q
  *
- * @param data The data to be converted
+ * @param X       The X-polarisation data
+ * @param Y       The Y-polarisation data
  * @param stokesQ The Stokes Q output
+ * @param N       The number of samples
  *
  * `data` is expected to be an array of *pairs* of complex numbers,
  * X,Y,X,Y,X,Y,...
  * from which the Stokes parameters are formed:
  *    Q = |X|^2 - |Y|^2
  */
-__global__ void cudaStokesQ_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesQ )
+__global__ void cudaStokesQ_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesQ, int N )
 {
     // Let i represent the output sample index
     int i = threadIdx.x + blockIdx.x*blockDim.x;
+
+    if (i >= N)
+        return;
 
     // Pull out the two polarisations
     cuFloatComplex x = X[i];
@@ -169,18 +190,23 @@ __global__ void cudaStokesQ_kernel( cuFloatComplex *X, cuFloatComplex *Y, float 
 /**
  * Convert dual polarisation data to Stokes U
  *
- * @param data The data to be converted
+ * @param X       The X-polarisation data
+ * @param Y       The Y-polarisation data
  * @param stokesU The Stokes U output
+ * @param N       The number of samples
  *
  * `data` is expected to be an array of *pairs* of complex numbers,
  * X,Y,X,Y,X,Y,...
  * from which the Stokes parameters are formed:
  *    U = 2*Re[X*Y]
  */
-__global__ void cudaStokesU_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesU )
+__global__ void cudaStokesU_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesU, int N )
 {
     // Let i represent the output sample index
     int i = threadIdx.x + blockIdx.x*blockDim.x;
+
+    if (i >= N)
+        return;
 
     // Pull out the two polarisations
     cuFloatComplex x = X[i];
@@ -193,18 +219,23 @@ __global__ void cudaStokesU_kernel( cuFloatComplex *X, cuFloatComplex *Y, float 
 /**
  * Convert dual polarisation data to Stokes V
  *
- * @param data The data to be converted
+ * @param X       The X-polarisation data
+ * @param Y       The Y-polarisation data
  * @param stokesV The Stokes V output
+ * @param N       The number of samples
  *
  * `data` is expected to be an array of *pairs* of complex numbers,
  * X,Y,X,Y,X,Y,...
  * from which the Stokes parameters are formed:
  *    V = 2*Re[X*Y]
  */
-__global__ void cudaStokesV_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesV )
+__global__ void cudaStokesV_kernel( cuFloatComplex *X, cuFloatComplex *Y, float *stokesV, int N )
 {
     // Let i represent the output sample index
     int i = threadIdx.x + blockIdx.x*blockDim.x;
+
+    if (i >= N)
+        return;
 
     // Pull out the two polarisations
     cuFloatComplex x = X[i];
@@ -241,21 +272,6 @@ void cudaCopyToSurface_kernel( cudaSurfaceObject_t dest, float *src )
 }
 
 __global__
-void cudaRotatePoints_kernel( float *points, float rad )
-{
-    // Assumes "points" is an array of sets of (x,y) coords
-    // (i.e. two floats per point), with stride 4
-    int i = blockIdx.x*blockDim.x + threadIdx.x;
-    int stride = 4;
-    float x = points[stride*i];
-    float y = points[stride*i+1];
-    float s, c;
-    sincosf( rad, &s, &c );
-    points[stride*i]   = c*x - s*y;
-    points[stride*i+1] = s*x + c*y;
-}
-
-__global__
 void cudaScaleFactor_kernel( cuFloatComplex *data, float scale )
 {
     int i = blockIdx.x*blockDim.x + threadIdx.x;
@@ -275,20 +291,20 @@ void cudaScaleFactor_kernel( cuFloatComplex *data, float scale )
 void cudaVDIFToFloatComplex( void *d_vds, void *d_vdif, size_t framelength, size_t headerlength,
         uint32_t Np, uint32_t Nc, uint32_t Ns, uint32_t c )
 {
-    dim3 blocks((Ns-1)/256+1);
-    dim3 threads(256, Np);
+    dim3 blocks((Ns-1)/512+1);
+    dim3 threads(512, Np);
 
     cudaVDIFToFloatComplex_kernel<<<blocks, threads>>>(
             (char2 *)d_vdif,
             (cuFloatComplex *)d_vds,
             framelength,
             headerlength,
-            Nc, c );
+            Nc, c, Ns );
 
     gpuErrchk( cudaDeviceSynchronize() );
 }
 
-void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum,
+void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum, size_t size,
         float DM, float ctr_freq_MHz_ch0, float ref_freq_MHz, float bw_MHz, int taperType, uint32_t Np, uint32_t Nc, uint32_t Ns )
 {
     dim3 blocks(Np, Nc, (Ns-1)/1024+1);
@@ -297,6 +313,7 @@ void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_ded
     cudaCoherentDedispersion_kernel<<<blocks, threads>>>(
             d_spectrum,
             d_dedispersed_spectrum,
+            Ns,
             DM,
             ctr_freq_MHz_ch0,
             ref_freq_MHz,
@@ -319,29 +336,22 @@ void cudaStokes( float *d_dest, cuFloatComplex *d_src, size_t NsNc, char stokes 
     switch (stokes)
     {
         case 'I':
-            cudaStokesI_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest );
+            cudaStokesI_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest, NsNc );
             break;
         case 'Q':
-            cudaStokesQ_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest );
+            cudaStokesQ_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest, NsNc );
             break;
         case 'U':
-            cudaStokesU_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest );
+            cudaStokesU_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest, NsNc );
             break;
         case 'V':
-            cudaStokesV_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest );
+            cudaStokesV_kernel<<<blocks, threads>>>( d_X, d_Y, d_dest, NsNc );
             break;
         default:
             fprintf( stderr, "WARNING: Unrecognised Stokes parameter '%c'\n", stokes );
             break;
     }
 
-    gpuErrchk( cudaPeekAtLastError() );
-    gpuErrchk( cudaDeviceSynchronize() );
-}
-
-void cudaRotatePoints( float *d_points, float rad )
-{
-    cudaRotatePoints_kernel<<<1,4>>>( d_points, rad );
     gpuErrchk( cudaPeekAtLastError() );
     gpuErrchk( cudaDeviceSynchronize() );
 }
