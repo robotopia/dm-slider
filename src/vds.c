@@ -54,10 +54,12 @@ void vds_create_title( struct vds_t *vds )
 
     vds_malloc_gpu( vds, vds->Ns * vds->Np * vds->Nc * sizeof(cuFloatComplex) );
     vds->ref_freq_MHz = 150.0;
-    vds->lo_freq_MHz  = 140.0;
+    vds->lo_freq_MHz  = 100.0;
     vds->ctr_freq_MHz = 150.0;
-    vds->hi_freq_MHz  = 160.0;
-    vds->bw_MHz       = 20.0;
+    vds->hi_freq_MHz  = 200.0;
+    vds->bw_MHz       = 50.0;
+
+    vds->dt = 1.0e-6/channel_bw_MHz( vds ); // sec
 
     uint8_t Xdata[] = TITLE_IMAGE; // Defined in title.h
 
@@ -87,12 +89,14 @@ void vds_from_vdif_context( struct vds_t *vds, struct vdif_context *vc )
 {
     // Pull out some of the (frequency) metadata for the whole set of channels
     struct vdif_file *vf = (struct vdif_file *)vc->channels->data; // The first channel
-    vds->lo_freq_MHz      = vf->ctr_freq_MHz - vf->bw_MHz/2.0;
+    vds->lo_freq_MHz     = vf->ctr_freq_MHz - vf->bw_MHz/2.0;
     vf                   = (struct vdif_file *)g_slist_last( vc->channels )->data; // The last channel
-    vds->hi_freq_MHz      = vf->ctr_freq_MHz + vf->bw_MHz/2.0;
-    vds->ctr_freq_MHz     = 0.5*(vds->lo_freq_MHz + vds->hi_freq_MHz);
-    vds->bw_MHz           = vds->hi_freq_MHz - vds->lo_freq_MHz;
-    vds->ref_freq_MHz     = vds->ctr_freq_MHz;
+    vds->hi_freq_MHz     = vf->ctr_freq_MHz + vf->bw_MHz/2.0;
+    vds->ctr_freq_MHz    = 0.5*(vds->lo_freq_MHz + vds->hi_freq_MHz);
+    vds->bw_MHz          = vds->hi_freq_MHz - vds->lo_freq_MHz;
+    vds->ref_freq_MHz    = vds->ctr_freq_MHz;
+
+    vds->dt              = vc->dt;
 
     // Only after they're all loaded, allocate a GPU array which will house
     // all the VDIF data (i.e. from all the channels) in cuComplex form.

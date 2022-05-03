@@ -46,6 +46,8 @@ void add_vdif_files_to_context( struct vdif_context *vc, GSList *filenames )
 {
     // Add each file, one at a time
     g_slist_foreach( filenames, add_vdif_file_to_context, vc );
+
+    vc->dt = 1.0/1.28e6; // Hard-coded for MWA data
 }
 
 void load_vdif( struct vdif_file *vf, char *hdrfile, size_t nframes )

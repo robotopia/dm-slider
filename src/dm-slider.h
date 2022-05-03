@@ -23,17 +23,20 @@ struct vdif_context
 {
     GSList     *channels;
     size_t      nframes;
+    float       dt;
 };
 
 struct vds_t
 {
+    uint32_t Ns;
+    uint32_t Np;
+    uint32_t Nc;
+
+    float    dt; // The duration of one sample (sec)
+
     // Variables relating to dedispersion
     float       DM;
     int         taperType;
-
-    uint32_t    Ns;
-    uint32_t    Np;
-    uint32_t    Nc;
 
     // Data buffers
     size_t          size;   // The size of the data (Np x Nc x Ns x sizeof(cuFloatComplex))

@@ -111,13 +111,11 @@ void set_dynamic_range( float lo, float hi )
     gtk_entry_set_text( GTK_ENTRY(dynamicRangeHi), gcvt( dynamicRange[1], 4, hiStr ) );
 }
 
-void set_time_range( float t0, float dt )
+void set_visible_time_range( float tLeft, float tRight )
 {
     // Assumes opengl_data.w has been set
-    opengl_data.tMax  = opengl_data.w*dt;
-    tRange[0] = t0;
-    tRange[1] = opengl_data.tMax + t0;
-    glProgramUniform1f( opengl_data.shader_program, opengl_data.tMaxLoc, opengl_data.tMax );
+    tRange[0]         = tLeft;
+    tRange[1]         = tRight;
     glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
 }
 
@@ -196,9 +194,7 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
     {
         float dx = xcoord - XCOORD(xprev);
 
-        tRange[0] -= dx;
-        tRange[1] -= dx;
-        glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
+        set_visible_time_range( tRange[0] - dx, tRange[1] - dx );
 
         xprev = event->x;
     }
@@ -347,7 +343,9 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         init_texture_and_surface();
 
         // Set the x-size of the drawing quad and the viewing area
-        set_time_range( 0.0, 1.0/1.28e6 );
+        float tmax = opengl_data.w*vds.dt;
+        glProgramUniform1f( opengl_data.shader_program, opengl_data.tMaxLoc, tmax );
+        set_visible_time_range( 0.0, tmax );
 
         g_slist_free( filenames );
 
@@ -668,6 +666,10 @@ int main( int argc, char *argv[] )
 
     gtk_widget_show_all( window );
     set_dynamic_range( 0.0, 1.0 );
+
+    float tmax = opengl_data.w*vds.dt;
+    glProgramUniform1f( opengl_data.shader_program, opengl_data.tMaxLoc, tmax );
+    set_visible_time_range( 0.0, tmax );
 
     gtk_main();
 
