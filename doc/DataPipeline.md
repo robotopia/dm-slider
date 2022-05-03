@@ -7,8 +7,7 @@
 | **START** | VDIF =<br>complex unsigned char,<br>dual polarisation,<br>in "frames" | `cudaMemcpy()` | 125 MB (GPU)<br>(3 seconds, 24 coarse channels) |
 | Strip frame headers &<br>Promote to cuFloatComplex | [Voltage dynamic spectrum](@ref arrayformats) | `cudaVDIFToFloatComplex()` | 500 MB |
 | Fourier transform | [Voltage dynamic spectrum](@ref arrayformats) | `forwardFFT()` | 500 MB |
-| Coherently dedisperse<br>each channel | [Voltage dynamic spectrum](@ref arrayformats) |  | 500 MB |
-| Remove interchannel<br>dispersion delays | [Voltage dynamic spectrum](@ref arrayformats) |  | 500 MB |
+| Coherently dedisperse<br>channels | [Voltage dynamic spectrum](@ref arrayformats) | `cudaCoherentDedispersion()` | 500 MB |
 | Inverse Fourier transform | [Voltage dynamic spectrum](@ref arrayformats) | `inverseFFT()` | 500 MB |
 | Detection (I,Q,U,V) | [Power dynamic spectrum](@ref arrayformats) | `cudaStokes()` | 125 MB |
 | Binning | [Power dynamic spectrum](@ref arrayformats) |  |  |
