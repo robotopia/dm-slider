@@ -52,6 +52,8 @@ void vds_create_title( struct vds_t *vds )
     vds->Np = 2;
     vds->Nc = 128;
 
+    vds->DM = 0.0;
+
     vds_malloc_gpu( vds, vds->Ns * vds->Np * vds->Nc * sizeof(cuFloatComplex) );
     vds->ref_freq_MHz = 150.0;
     vds->lo_freq_MHz  = 100.0;
@@ -97,6 +99,7 @@ void vds_from_vdif_context( struct vds_t *vds, struct vdif_context *vc )
     vds->ref_freq_MHz    = vds->ctr_freq_MHz;
 
     vds->dt              = vc->dt;
+    vds->DM              = 0.0;
 
     // Only after they're all loaded, allocate a GPU array which will house
     // all the VDIF data (i.e. from all the channels) in cuComplex form.
