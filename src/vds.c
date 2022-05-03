@@ -57,7 +57,7 @@ void vds_create_title( struct vds_t *vds )
     vds->lo_freq_MHz  = 100.0;
     vds->ctr_freq_MHz = 150.0;
     vds->hi_freq_MHz  = 200.0;
-    vds->bw_MHz       = 50.0;
+    vds->bw_MHz       = 100.0;
 
     vds->dt = 1.0e-6/channel_bw_MHz( vds ); // sec
 

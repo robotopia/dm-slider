@@ -95,8 +95,8 @@ struct opengl_data_t
 
 struct opengl_data_t opengl_data;
 
-float dynamicRange[] = { -0.01f, 0.01f };
-float tRange[] = { 0.0f, 1.0f };
+float dynamicRange[2];
+float tRange[2];
 
 void recalcImageFromDedispersion();
 void init_texture_and_surface();
@@ -327,6 +327,7 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         // Load VDIFs
         init_vdif_context( &vc, 100 );
         add_vdif_files_to_context( &vc, filenames );
+        g_slist_free( filenames );
 
         // Convert VDIF to a voltage dynamic spectrum
         vds_from_vdif_context( &vds, &vc );
@@ -334,8 +335,6 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         // Allocate memory in d_image and use it to store Stokes I data
         gpuErrchk( cudaFree( opengl_data.d_image ) );
         gpuErrchk( cudaMalloc( (void **)&opengl_data.d_image, vds.size ) );
-
-        recalcImageFromDedispersion();
 
         // Load to surface
         opengl_data.w = vds.Ns;
@@ -347,10 +346,13 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         glProgramUniform1f( opengl_data.shader_program, opengl_data.tMaxLoc, tmax );
         set_visible_time_range( 0.0, tmax );
 
-        g_slist_free( filenames );
+        // Set the default dynamic range for VDIF files
+        set_dynamic_range( -0.001, 0.01 );
 
         // Don't need the vdif context any more
         destroy_all_vdif_files( &vc );
+
+        recalcImageFromDedispersion();
     }
 
     gtk_widget_destroy( dialog );
@@ -592,7 +594,10 @@ int main( int argc, char *argv[] )
     gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(stokesComboBox), NULL, "Q" );
     gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(stokesComboBox), NULL, "U" );
     gtk_combo_box_text_append( GTK_COMBO_BOX_TEXT(stokesComboBox), NULL, "V" );
+
+    // Set the initial stokes to I
     gtk_combo_box_set_active( GTK_COMBO_BOX(stokesComboBox), 0 );
+    opengl_data.stokes = 'I';
 
     // Connect everything together
     gtk_window_add_accel_group( GTK_WINDOW(window), accel_group ); // Doesn't do anything yet
@@ -661,7 +666,6 @@ int main( int argc, char *argv[] )
 
     drag_mode = false;
 
-    opengl_data.stokes = 'I';
     vds_create_title( &vds );
 
     gtk_widget_show_all( window );
