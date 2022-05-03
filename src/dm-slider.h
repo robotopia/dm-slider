@@ -92,7 +92,7 @@ void vds_destroy( struct vds_t *vds );
 float channel_bw_MHz( struct vds_t *vds );
 float ctr_freq_MHz_nth_channel( struct vds_t *vds, uint32_t n );
 
-
+void vds_spectrum_init( struct vds_t *vds );
 
 void cudaScaleFactor( cuFloatComplex *d_data, float scale, size_t npoints );
 void cudaCoherentDedispersion( cuFloatComplex *d_spectrum, cuFloatComplex *d_dedispersed_spectrum, size_t size,

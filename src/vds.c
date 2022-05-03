@@ -54,10 +54,10 @@ void vds_create_title( struct vds_t *vds )
 
     vds_malloc_gpu( vds, vds->Ns * vds->Np * vds->Nc * sizeof(cuFloatComplex) );
     vds->ref_freq_MHz = 150.0;
-    vds->lo_freq_MHz  = 100.0;
+    vds->lo_freq_MHz  = 140.0;
     vds->ctr_freq_MHz = 150.0;
-    vds->hi_freq_MHz  = 200.0;
-    vds->bw_MHz       = 100.0;
+    vds->hi_freq_MHz  = 160.0;
+    vds->bw_MHz       = 20.0;
 
     uint8_t Xdata[] = TITLE_IMAGE; // Defined in title.h
 
@@ -68,15 +68,19 @@ void vds_create_title( struct vds_t *vds )
     {
         for (s = 0; s < vds->Ns; s++)
         {
-            i = c*vds->Ns + s;
-            Xi = i;
-            Yi = i + 1*vds->Nc*vds->Ns;
+            i = (vds->Nc - c - 1)*vds->Ns + s;
+            Xi = c*vds->Ns + s;
+            Yi = Xi + 1*vds->Nc*vds->Ns;
             data[Xi] = make_cuFloatComplex( float(Xdata[i])/255.0, 0.0 );
             data[Yi] = make_cuFloatComplex( 0.0, 0.0 );
         }
     }
 
+    // Copy data to GPU
     gpuErrchk( cudaMemcpy( vds->d_data, data, vds->size, cudaMemcpyHostToDevice ) );
+
+    // Initialise the spectrum
+    vds_spectrum_init( vds );
 }
 
 void vds_from_vdif_context( struct vds_t *vds, struct vdif_context *vc )
@@ -144,6 +148,12 @@ void vds_from_vdif_context( struct vds_t *vds, struct vdif_context *vc )
         i = i->next;
     }
 
+    // Initialise the spectrum
+    vds_spectrum_init( vds );
+}
+
+void vds_spectrum_init( struct vds_t *vds )
+{
     // Set up cuFFT plan
     // Because the arrays have time as the fastest changing quantity, the plan
     // can be a batch (1D) plan that does all channels and polarisations

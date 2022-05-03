@@ -111,6 +111,16 @@ void set_dynamic_range( float lo, float hi )
     gtk_entry_set_text( GTK_ENTRY(dynamicRangeHi), gcvt( dynamicRange[1], 4, hiStr ) );
 }
 
+void set_time_range( float t0, float dt )
+{
+    // Assumes opengl_data.w has been set
+    opengl_data.tMax  = opengl_data.w*dt;
+    tRange[0] = t0;
+    tRange[1] = opengl_data.tMax + t0;
+    glProgramUniform1f( opengl_data.shader_program, opengl_data.tMaxLoc, opengl_data.tMax );
+    glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
+}
+
 void draw()
 {
     // Clear the surface
@@ -337,12 +347,7 @@ static gboolean open_file_callback( GtkWidget *widget, gpointer data )
         init_texture_and_surface();
 
         // Set the x-size of the drawing quad and the viewing area
-        float dt = 1.0/1.28e6; // THIS WILL NEED TO GO SOMEWHERE ELSE MORE SENSIBLE
-        opengl_data.tMax  = opengl_data.w*dt;
-        tRange[0] = 0.0f;
-        tRange[1] = opengl_data.tMax;
-        glProgramUniform1f( opengl_data.shader_program, opengl_data.tMaxLoc, opengl_data.tMax );
-        glProgramUniform2fv( opengl_data.shader_program, opengl_data.tRangeLoc, 1, tRange );
+        set_time_range( 0.0, 1.0/1.28e6 );
 
         g_slist_free( filenames );
 
