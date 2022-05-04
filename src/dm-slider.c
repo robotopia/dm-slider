@@ -571,7 +571,7 @@ int main( int argc, char *argv[] )
     menubar      = gtk_menu_bar_new();
     menu         = gtk_menu_new();
     menuitemFile = gtk_menu_item_new_with_label( "File" );
-    menuitemOpen = gtk_menu_item_new_with_label( "Open" );
+    menuitemOpen = gtk_menu_item_new_with_label( "Open VDIF..." );
     separator    = gtk_separator_menu_item_new();
     menuitemQuit = gtk_menu_item_new_with_label( "Quit" );
 
