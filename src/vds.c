@@ -11,7 +11,6 @@
 #include <vdifio.h>
 
 #include "dm-slider.h"
-#include "title.h"
 
 void vds_init( struct vds_t *vds )
 {
@@ -63,7 +62,20 @@ void vds_create_title( struct vds_t *vds )
 
     vds->dt = 1.0e-6/channel_bw_MHz( vds ); // sec
 
-    uint8_t Xdata[] = TITLE_IMAGE; // Defined in title.h
+#ifndef RESOURCE_FOLDER
+    FILE *f = fopen( "res/title.dat", "r" );
+#else
+    char title_filename[1024];
+    sprintf( title_filename, "%s/title.dat", RESOURCE_FOLDER );
+    FILE *f = fopen( title_filename, "r" );
+#endif
+    fseek( f, 0L, SEEK_END );
+    size_t title_size = ftell( f );
+    rewind( f );
+
+    uint8_t Xdata[title_size];
+    fread( Xdata, title_size, 1, f );
+    fclose( f );
 
     cuFloatComplex data[vds->Ns * vds->Nc * vds->Np];
 
