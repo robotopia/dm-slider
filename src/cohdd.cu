@@ -254,6 +254,7 @@ __global__ void cudaStokesV_kernel( cuFloatComplex *X, cuFloatComplex *Y, float 
  * @param      Ns_binned The size of the time dimension of `binned`
  * @param      sfactor   The binning factor for samples
  * @param      Nc        The size of the frequency dimension of `unbinned`
+ * @param      Nc_binned The size of the frequency dimension of `binned`
  * @param      cfactor   The binning factor for channels
  *
  * Each thread in this non-optimised kernel sums `sfactor*cfactor` bins together.
@@ -269,22 +270,33 @@ __global__ void cudaStokesV_kernel( cuFloatComplex *X, cuFloatComplex *Y, float 
  * compute, and `C` is the similarly number of desired binned channels.
  */
 __global__ void cudaBinPower_kernel( float *unbinned, float *binned,
-        int Ns, int Ns_binned, int sfactor, int Nc, int cfactor )
+        int Ns, int Ns_binned, int sfactor, int Nc, int Nc_binned, int cfactor )
 {
     int sb = blockIdx.x * blockDim.x + threadIdx.x; // The (s)ample number, in (b)inned
     int cb = blockIdx.y;                            // The (c)hannel number, in (b)inned
     int ib = cb*Ns_binned + sb;                     // The (i)ndex into (b)inned
+
+    // Check for out of bounds...
+    // ...for the binned array
+    if (ib >= Ns_binned*Nc_binned)
+        return;
+
+    // ...and for the unbinned array
+    int cmax = cb*(cfactor + 1) - 1;
+    int smax = sb*(sfactor + 1) - 1;
+    if (cmax*Ns + smax >= Ns*Nc)
+        return;
 
     int s;                                          // The (s)ample number, in unbinned
     int c;                                          // The (c)hannel number, in unbinned
     int i;                                          // The (i)ndex into unbinned
 
     float res = 0.0;
-    for (s = sb*sfactor; s < sb*sfactor + sfactor; s++)
+    for (s = sb*sfactor; s < sb*(sfactor + 1); s++)
     {
-        for (c = cb*cfactor; c < cb*cfactor + cfactor; c++)
+        for (c = cb*cfactor; c < cb*(cfactor + 1); c++)
         {
-            i = s*Ns + c;
+            i = c*Ns + s;
             res += unbinned[i];
         }
     }
