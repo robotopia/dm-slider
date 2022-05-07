@@ -245,6 +245,54 @@ __global__ void cudaStokesV_kernel( cuFloatComplex *X, cuFloatComplex *Y, float 
     stokesV[i] = -2.0*(x.x*y.y - x.y*y.x);
 }
 
+/**
+ * Computes the mean power in consecutive bins
+ *
+ * @param[in]  unbinned  The original power dynamic spectrum
+ * @param[out] binned    The time-scrunched power dynamic spectrum
+ * @param      Ns        The size of the time dimension of `unbinned`
+ * @param      Ns_binned The size of the time dimension of `binned`
+ * @param      sfactor   The binning factor for samples
+ * @param      Nc        The size of the frequency dimension of `unbinned`
+ * @param      cfactor   The binning factor for channels
+ *
+ * Each thread in this non-optimised kernel sums `sfactor*cfactor` bins together.
+ * If `factor` is small, it is hoped that the inefficiency of this
+ * straightforward method is not too much worse than the overhead of
+ * parallelising the sums.
+ *
+ * This kernel expects the thread/block layout to be:
+ * ```
+ * <<< ((B-1)/1024+1, C), 1024 >>>
+ * ```
+ * where `B` is the number of desired binned samples for this kernel to
+ * compute, and `C` is the similarly number of desired binned channels.
+ */
+__global__ void cudaBinPower_kernel( float *unbinned, float *binned,
+        int Ns, int Ns_binned, int sfactor, int Nc, int cfactor )
+{
+    int sb = blockIdx.x * blockDim.x + threadIdx.x; // The (s)ample number, in (b)inned
+    int cb = blockIdx.y;                            // The (c)hannel number, in (b)inned
+    int ib = cb*Ns_binned + sb;                     // The (i)ndex into (b)inned
+
+    int s;                                          // The (s)ample number, in unbinned
+    int c;                                          // The (c)hannel number, in unbinned
+    int i;                                          // The (i)ndex into unbinned
+
+    float res = 0.0;
+    for (s = sb*sfactor; s < sb*sfactor + sfactor; s++)
+    {
+        for (c = cb*cfactor; c < cb*cfactor + cfactor; c++)
+        {
+            i = s*Ns + c;
+            res += unbinned[i];
+        }
+    }
+
+    // Put the mean into the binned array
+    binned[ib] = res / (float)(sfactor*cfactor);
+}
+
 __global__
 void cudaCreateImage_kernel( float *image, int width, int height )
 {
