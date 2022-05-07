@@ -276,6 +276,10 @@ __global__ void cudaBinPower_kernel( float *unbinned, float *binned,
     int cb = blockIdx.y;                            // The (c)hannel number, in (b)inned
     int ib = cb*Ns_binned + sb;                     // The (i)ndex into (b)inned
 
+    int s;                                          // The (s)ample number, in unbinned
+    int c;                                          // The (c)hannel number, in unbinned
+    int i;                                          // The (i)ndex into unbinned
+
     // Check for out of bounds...
     // ...for the binned array
     if (ib >= Ns_binned*Nc_binned)
@@ -286,10 +290,6 @@ __global__ void cudaBinPower_kernel( float *unbinned, float *binned,
     int smax = sb*(sfactor + 1) - 1;
     if (cmax*Ns + smax >= Ns*Nc)
         return;
-
-    int s;                                          // The (s)ample number, in unbinned
-    int c;                                          // The (c)hannel number, in unbinned
-    int i;                                          // The (i)ndex into unbinned
 
     float res = 0.0;
     for (s = sb*sfactor; s < sb*(sfactor + 1); s++)

@@ -2,15 +2,15 @@
 
 \dotfile cudaopengl.dot
 
-| Process | Array format | Associated CUDA function | Size (1 second,<br>24 x 1.28 MHz channels) |
+| Process | Array format | Associated function(s) | Size (1 second,<br>24 x 1.28 MHz channels) |
 | :------ | :----- | :---------- | :------------ |
-| **START** | VDIF =<br>complex unsigned char,<br>dual polarisation,<br>in "frames" | `cudaMemcpy()` | 125 MB (GPU)<br>(3 seconds, 24 coarse channels) |
-| Strip frame headers &<br>Promote to cuFloatComplex | [Voltage dynamic spectrum](@ref arrayformats) | `cudaVDIFToFloatComplex()` | 500 MB |
+| **START** | VDIF, or other format | `cudaMemcpy()` | 125 MB (GPU)<br>(3 seconds, 24 coarse channels) |
+| Convert to VDS | [Voltage dynamic spectrum](@ref arrayformats) | `vds_create_title()`<br>`vds_from_vdif_context()`<br>`cudaVDIFToFloatComplex()` | 500 MB |
 | Fourier transform | [Voltage dynamic spectrum](@ref arrayformats) | `forwardFFT()` | 500 MB |
 | Coherently dedisperse<br>channels | [Voltage dynamic spectrum](@ref arrayformats) | `cudaCoherentDedispersion()` | 500 MB |
 | Inverse Fourier transform | [Voltage dynamic spectrum](@ref arrayformats) | `inverseFFT()` | 500 MB |
-| Detection (I,Q,U,V) | [Power dynamic spectrum](@ref arrayformats) | `cudaStokes()` | 125 MB |
-| Binning | [Power dynamic spectrum](@ref arrayformats) |  |  |
+| Form Stokes (I,Q,U,V) | [Power dynamic spectrum](@ref arrayformats) | `cudaStokes()` | 125 MB |
+| Binning | [Power dynamic spectrum](@ref arrayformats) | `cudaBinPower()` |  |
 | Copy to CUDA Surface | [Image](@ref arrayformats) | `cudaCopyToSurface()` |  |
 | Map to OpenGL Texture | [Image](@ref arrayformats) | CUDA-OpenGL interoperability |  |
 | Draw on quad (via shaders) |  |  |  |
@@ -42,3 +42,6 @@ Another limitation is the maximum allowed size for textures in OpenGL.
 | Power dynamic spectrum | (Frequency) channel <br> (Time) sample | `Nc`<br>`Ns` | `float` | `c*Ns + s` |
 | Image | Width <br> Height | `W`<br> `H` | `float` | `y*W + x` |
 
+## Binning {#binning}
+
+Binning refers to the amount of time and/or frequency averaging that happens after the Stokes parameters
