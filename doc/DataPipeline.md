@@ -15,6 +15,8 @@
 | Map to OpenGL Texture | [Image](@ref arrayformats) | CUDA-OpenGL interoperability |  |
 | Draw on quad (via shaders) |  |  |  |
 
+\dotfile datapipeline.dot
+
 In general, the data volume is too big for *all* the data to process at once.
 At each step along the processing pipeline, choices must be made as to which subset of data should be processed.
 These decisions are based on the primary design paradigm of this piece of software: **smooth interactivity**.
@@ -34,7 +36,7 @@ Another limitation is the maximum allowed size for textures in OpenGL.
 
 ## Array formats {#arrayformats}
 
-| Format | Dimensions (from slowest to<br>fastest changing) | Size | Data type | Formula |
+| Format | Dimensions (from slowest to<br>fastest changing) | Size | Data type | Index formula |
 | :----- | :----------------------------------------------- | :--: | :-------: | :-----: |
 | Voltage dynamic spectrum | Polarisation <br> (Frequency) channel <br> (Time) sample | `Np`<br>`Nc`<br>`Ns` | `cuFloatComplex` | `p*Nc*Ns + c*Ns + s` |
 | Power dynamic spectrum | (Frequency) channel <br> (Time) sample | `Nc`<br>`Ns` | `float` | `c*Ns + s` |

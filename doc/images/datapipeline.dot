@@ -1,0 +1,22 @@
+digraph cudaopengl
+{
+    OtherFormats [shape="box", label="Other formats..."]
+    VDIF [shape="box"]
+    VDS [label="Convert to voltage\ndynamic spectrum (VDS)" ]
+    CohDD [label="Apply coherent dedispersion\ntransfer function"]
+    IFFT [label="Inverse FFT"]
+    Detect [label="Form Stokes\n(I, Q, U, or V)"]
+    Surface [label="Copy to CUDA\nSurface"]
+    Texture [label="Map to OpenGL\nTexture"]
+
+    VDIF -> VDS
+    OtherFormats -> VDS
+    VDS -> FFT -> CohDD -> IFFT -> Detect -> Binning -> Surface -> Texture
+
+    subgraph subs
+    {
+        rank = same
+        VDIF
+        OtherFormats
+    }
+}
