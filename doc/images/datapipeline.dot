@@ -3,7 +3,7 @@ digraph cudaopengl
     OtherFormats [shape="box", label="Other formats..."];
     VDIF [shape="box"];
     VDS [label="Convert to voltage\ndynamic spectrum (VDS)" ];
-    CohDD [label="Apply coherent dedispersion\ntransfer function"];
+    CohDD [label="Apply coherent dedispersion\nchirp function"];
     IFFT [label="Inverse FFT"];
     Detect [label="Form Stokes\n(I, Q, U, or V)"];
     Binning [href="@ref binning", fontcolor="blue"];
@@ -25,20 +25,27 @@ digraph cudaopengl
     {
         rank = same;
         Detect;
-        Binning;
+        IFFT;
     }
 
     subgraph subs3
     {
         rank = same;
-        IFFT;
-        Surface;
+        Binning;
+        CohDD;
     }
 
     subgraph subs4
     {
         rank = same;
-        CohDD;
+        Surface;
+        FFT;
+    }
+
+    subgraph subs4
+    {
+        rank = same;
         Texture;
+        VDS;
     }
 }
