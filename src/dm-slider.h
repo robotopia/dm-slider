@@ -94,6 +94,8 @@ void vds_destroy( struct vds_t *vds );
 
 float channel_bw_MHz( struct vds_t *vds );
 float ctr_freq_MHz_nth_channel( struct vds_t *vds, uint32_t n );
+void vds_set_freq_ctr_bw( struct vds_t *vds, float ctr_freq_MHz, float bw_MHz );
+void vds_set_freq_lo_hi( struct vds_t *vds, float lo_freq_MHz, float hi_freq_MHz );
 
 void vds_spectrum_init( struct vds_t *vds );
 

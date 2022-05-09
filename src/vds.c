@@ -54,11 +54,8 @@ void vds_create_title( struct vds_t *vds )
     vds->DM = 0.0;
 
     vds_malloc_gpu( vds, vds->Ns * vds->Np * vds->Nc * sizeof(cuFloatComplex) );
+    vds_set_freq_ctr_bw( vds, 150.0, 100.0 );
     vds->ref_freq_MHz = 150.0;
-    vds->lo_freq_MHz  = 100.0;
-    vds->ctr_freq_MHz = 150.0;
-    vds->hi_freq_MHz  = 200.0;
-    vds->bw_MHz       = 100.0;
 
     vds->dt = 1.0e-6/channel_bw_MHz( vds ); // sec
 
@@ -99,16 +96,30 @@ void vds_create_title( struct vds_t *vds )
     vds_spectrum_init( vds );
 }
 
+void vds_set_freq_ctr_bw( struct vds_t *vds, float ctr_freq_MHz, float bw_MHz )
+{
+    vds->ctr_freq_MHz = ctr_freq_MHz;
+    vds->bw_MHz       = bw_MHz;
+    vds->lo_freq_MHz  = ctr_freq_MHz - bw_MHz/2.0;
+    vds->hi_freq_MHz  = ctr_freq_MHz + bw_MHz/2.0;
+}
+
+void vds_set_freq_lo_hi( struct vds_t *vds, float lo_freq_MHz, float hi_freq_MHz )
+{
+    vds->lo_freq_MHz  = lo_freq_MHz;
+    vds->hi_freq_MHz  = hi_freq_MHz;
+    vds->ctr_freq_MHz = 0.5*(lo_freq_MHz + hi_freq_MHz);
+    vds->bw_MHz       = hi_freq_MHz - lo_freq_MHz;
+}
+
 void vds_from_vdif_context( struct vds_t *vds, struct vdif_context *vc )
 {
-    // Pull out some of the (frequency) metadata for the whole set of channels
+    // Derive global frequency info from VDIF channels
     struct vdif_file *vf = (struct vdif_file *)vc->channels->data; // The first channel
-    vds->lo_freq_MHz     = vf->ctr_freq_MHz - vf->bw_MHz/2.0;
+    float lo_freq_MHz    = vf->ctr_freq_MHz - vf->bw_MHz/2.0; // Bottom edge of bottom channel
     vf                   = (struct vdif_file *)g_slist_last( vc->channels )->data; // The last channel
-    vds->hi_freq_MHz     = vf->ctr_freq_MHz + vf->bw_MHz/2.0;
-    vds->ctr_freq_MHz    = 0.5*(vds->lo_freq_MHz + vds->hi_freq_MHz);
-    vds->bw_MHz          = vds->hi_freq_MHz - vds->lo_freq_MHz;
-    vds->ref_freq_MHz    = vds->ctr_freq_MHz;
+    float hi_freq_MHz    = vf->ctr_freq_MHz + vf->bw_MHz/2.0; // op edge of top channel
+    vds_set_freq_lo_hi( vds, lo_freq_MHz, hi_freq_MHz );
 
     vds->dt              = vc->dt;
     vds->DM              = 0.0;
