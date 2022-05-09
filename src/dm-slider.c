@@ -202,14 +202,14 @@ void cursor_position_callback( GtkWidget* widget, GdkEventMotion *event, gpointe
     {
 
         float dt = xcoord - XCOORD(xprev);
-        float f  = ycoord;
+        float f  = YCOORD(yprev);
 
         vds.DM += calcDM( dt, vds.ref_freq_MHz, f );
 
         recalcImageFromDedispersion();
 
         xprev = event->x;
-        yprev = event->y;
+        //yprev = event->y;
     }
 
     // Update the status bar with the cursor's position in world coordinates

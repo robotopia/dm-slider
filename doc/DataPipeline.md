@@ -44,4 +44,11 @@ Another limitation is the maximum allowed size for textures in OpenGL.
 
 ## Binning {#binning}
 
-Binning refers to the amount of time and/or frequency averaging that happens after the Stokes parameters
+Binning refers to the amount of time and/or frequency averaging that happens after the Stokes parameter(s) have been formed.
+The amount of binning is set jointly by
+
+1. The user, and
+2. The maximum size of OpenGL textures and CUDA surfaces.
+
+To satisfy the second constraint, we fix the maximum size of the texture and surface to be 4096x4096 pixels.
+If, upon loading a new data set, there are fewer than 4096 channels, or fewer than 4096 time samples, then the texture and surface are created with the smaller dimensions, accordingly.
